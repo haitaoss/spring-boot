@@ -261,6 +261,7 @@ public final class ConfigurationPropertiesBean {
 
 	private static ConfigurationPropertiesBean create(String name, Object instance, Class<?> type, Method factory) {
 		ConfigurationProperties annotation = findAnnotation(instance, type, factory, ConfigurationProperties.class);
+		// 没有 @ConfigurationProperties 注解就返回null
 		if (annotation == null) {
 			return null;
 		}
@@ -313,6 +314,11 @@ public final class ConfigurationPropertiesBean {
 		 */
 		VALUE_OBJECT;
 
+		/**
+		 * 构造器上有 @ConstructorBinding 就返回 VALUE_OBJECT
+		 * @param type
+		 * @return
+		 */
 		static BindMethod forType(Class<?> type) {
 			return (ConfigurationPropertiesBindConstructorProvider.INSTANCE.getBindConstructor(type, false) != null)
 					? VALUE_OBJECT : JAVA_BEAN;

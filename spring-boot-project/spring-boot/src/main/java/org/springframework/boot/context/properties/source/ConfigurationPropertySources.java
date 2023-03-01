@@ -16,19 +16,12 @@
 
 package org.springframework.boot.context.properties.source;
 
+import org.springframework.core.env.*;
+import org.springframework.core.env.PropertySource.StubPropertySource;
+import org.springframework.util.Assert;
+
 import java.util.Collections;
 import java.util.stream.Stream;
-
-import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.ConfigurablePropertyResolver;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.PropertyResolver;
-import org.springframework.core.env.PropertySource;
-import org.springframework.core.env.PropertySource.StubPropertySource;
-import org.springframework.core.env.PropertySources;
-import org.springframework.core.env.PropertySourcesPropertyResolver;
-import org.springframework.util.Assert;
 
 /**
  * Provides access to {@link ConfigurationPropertySource ConfigurationPropertySources}.
@@ -86,12 +79,16 @@ public final class ConfigurationPropertySources {
 	public static void attach(Environment environment) {
 		Assert.isInstanceOf(ConfigurableEnvironment.class, environment);
 		MutablePropertySources sources = ((ConfigurableEnvironment) environment).getPropertySources();
+		// 拿到叫这个名字的 configurationProperties PropertySource
 		PropertySource<?> attached = getAttached(sources);
+		// 这个判断是为了防止重复下面的操作
 		if (attached == null || !isUsingSources(attached, sources)) {
+			// 装饰成 ConfigurationPropertySourcesPropertySource
 			attached = new ConfigurationPropertySourcesPropertySource(ATTACHED_PROPERTY_SOURCE_NAME,
 					new SpringConfigurationPropertySources(sources));
 		}
 		sources.remove(ATTACHED_PROPERTY_SOURCE_NAME);
+		// 放到前面
 		sources.addFirst(attached);
 	}
 

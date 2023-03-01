@@ -51,6 +51,7 @@ import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.boot.web.servlet.server.ServletWebServerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextException;
+import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.core.io.Resource;
 import org.springframework.core.metrics.StartupStep;
 import org.springframework.util.StringUtils;
@@ -181,8 +182,18 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 			StartupStep createWebServer = this.getApplicationStartup().start("spring.boot.webserver.create");
 			ServletWebServerFactory factory = getWebServerFactory();
 			createWebServer.tag("factory", factory.getClass().toString());
+			/**
+			 * 生成 webServer 然后启动服务
+			 *
+			 * todo 感觉不对劲了，那么 DispatcherServlet 是如何启动的？？？
+			 * */
 			this.webServer = factory.getWebServer(getSelfInitializer());
 			createWebServer.end();
+			/**
+			 * 注册两个 SmartLifecycle 的bean。
+			 *
+			 * 注：就是在这个地方会触发，下面两个 SmartLifecycle 的 start 方法 {@link AbstractApplicationContext#finishRefresh()}
+			 * */
 			getBeanFactory().registerSingleton("webServerGracefulShutdown",
 					new WebServerGracefulShutdownLifecycle(this.webServer));
 			getBeanFactory().registerSingleton("webServerStartStop",
@@ -190,12 +201,14 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 		}
 		else if (servletContext != null) {
 			try {
+				// 回调
 				getSelfInitializer().onStartup(servletContext);
 			}
 			catch (ServletException ex) {
 				throw new ApplicationContextException("Cannot initialize servlet context", ex);
 			}
 		}
+		// 就是让 environment 可以读到 servletContext 和 servletConfig 配置的初始化参数
 		initPropertySources();
 	}
 

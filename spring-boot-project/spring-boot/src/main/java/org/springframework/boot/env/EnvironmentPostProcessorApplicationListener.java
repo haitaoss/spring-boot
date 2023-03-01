@@ -99,6 +99,7 @@ public class EnvironmentPostProcessorApplicationListener implements SmartApplica
 		SpringApplication application = event.getSpringApplication();
 		for (EnvironmentPostProcessor postProcessor : getEnvironmentPostProcessors(application.getResourceLoader(),
 				event.getBootstrapContext())) {
+			// 回调 EnvironmentPostProcessor
 			postProcessor.postProcessEnvironment(environment, application);
 		}
 	}

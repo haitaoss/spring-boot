@@ -80,7 +80,13 @@ import org.springframework.core.io.support.SpringFactoriesLoader;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @Inherited
+// 这个只是注册 BasePackages.class 到容器中，没啥用
 @AutoConfigurationPackage
+/**
+ * 会读取这两个文件拿到 自动注入的类 是啥：
+ *  - 读取 META-INF/spring.factories 文件 key是 `AutoConfiguration.class.getName()`
+ *  - 读取 META-INF/spring/`AutoConfiguration.class.getName()`.imports 文件的内容
+ * */
 @Import(AutoConfigurationImportSelector.class)
 public @interface EnableAutoConfiguration {
 

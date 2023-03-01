@@ -17,6 +17,8 @@ repositories {
 
 dependencies {
     implementation project(":spring-boot-project:spring-boot-autoconfigure")
+    implementation "org.yaml:snakeyaml"
+    implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-web")
 
     // lombok
     annotationProcessor 'org.projectlombok:lombok:1.18.2'
@@ -26,7 +28,6 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-
 
 }
 

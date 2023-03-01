@@ -82,7 +82,9 @@ class ConfigDataImporter {
 			List<ConfigDataLocation> locations) {
 		try {
 			Profiles profiles = (activationContext != null) ? activationContext.getProfiles() : null;
+			// 解析
 			List<ConfigDataResolutionResult> resolved = resolve(locationResolverContext, profiles, locations);
+			// 读取文件内容
 			return load(loaderContext, resolved);
 		}
 		catch (IOException ex) {
@@ -94,6 +96,7 @@ class ConfigDataImporter {
 			Profiles profiles, List<ConfigDataLocation> locations) {
 		List<ConfigDataResolutionResult> resolved = new ArrayList<>(locations.size());
 		for (ConfigDataLocation location : locations) {
+			// 添加存在的资源文件路径
 			resolved.addAll(resolve(locationResolverContext, profiles, location));
 		}
 		return Collections.unmodifiableList(resolved);

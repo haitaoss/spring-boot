@@ -95,12 +95,15 @@ class JavaBeanBinder implements DataObjectBinder {
 		ResolvableType type = property.getType();
 		Supplier<Object> value = property.getValue(beanSupplier);
 		Annotation[] annotations = property.getAnnotations();
+		// 拿到属性值
 		Object bound = propertyBinder.bindProperty(propertyName,
 				Bindable.of(type).withSuppliedValue(value).withAnnotations(annotations));
 		if (bound == null) {
 			return false;
 		}
+		// 有 set 方法
 		if (property.isSettable()) {
+			// 反射设置值
 			property.setValue(beanSupplier, bound);
 		}
 		else if (value == null || !bound.equals(value.get())) {

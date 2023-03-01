@@ -52,8 +52,22 @@ import org.springframework.data.repository.Repository;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @Inherited
+// 就是一个 @Configuration
 @SpringBootConfiguration
+// 会 @Import 导入类
 @EnableAutoConfiguration
+/**
+ * TypeExcludeFilter 是一个大管家，我们可以往容器中注册 TypeExcludeFilter 类型的bean，扩展排除规则
+ *
+ * AutoConfigurationExcludeFilter 是用来排除
+ * 		标注了 @AutoConfiguration 配置类
+ * 			或者
+ * 		META-INF/spring.factories key为 `EnableAutoConfiguration.class.getName()` 的类
+ * 			或者
+ *		META-INF/spring/`AutoConfiguration.class.getName()`.imports 文件中记录的类
+ *
+ * 注：因为这些类会被 @EnableAutoConfiguration 所解析
+ * */
 @ComponentScan(excludeFilters = { @Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
 		@Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class) })
 public @interface SpringBootApplication {

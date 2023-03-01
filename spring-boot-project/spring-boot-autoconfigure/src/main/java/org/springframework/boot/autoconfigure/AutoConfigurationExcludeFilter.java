@@ -63,9 +63,12 @@ public class AutoConfigurationExcludeFilter implements TypeFilter, BeanClassLoad
 	}
 
 	protected List<String> getAutoConfigurations() {
+		// 获取两个属性文件里面的信息
 		if (this.autoConfigurations == null) {
+			// META-INF/spring.factories
 			List<String> autoConfigurations = new ArrayList<>(
 					SpringFactoriesLoader.loadFactoryNames(EnableAutoConfiguration.class, this.beanClassLoader));
+			// META-INF/spring/%s.imports
 			ImportCandidates.load(AutoConfiguration.class, this.beanClassLoader).forEach(autoConfigurations::add);
 			this.autoConfigurations = autoConfigurations;
 		}

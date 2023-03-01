@@ -43,20 +43,35 @@ class EnableConfigurationPropertiesRegistrar implements ImportBeanDefinitionRegi
 
 	@Override
 	public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionRegistry registry) {
+		/**
+		 * 注册四个bean：
+		 * 	ConfigurationPropertiesBindingPostProcessor
+		 * 	ConfigurationPropertiesBinder.Factory
+		 * 	ConfigurationPropertiesBinder
+		 * 	BoundConfigurationProperties
+		 * */
 		registerInfrastructureBeans(registry);
+		// 注册 MethodValidationExcludeFilter
 		registerMethodValidationExcludeFilter(registry);
+		// ConfigurationPropertiesBeanRegistrar 大有来头，好复杂的样子
 		ConfigurationPropertiesBeanRegistrar beanRegistrar = new ConfigurationPropertiesBeanRegistrar(registry);
+		/**
+		 * 将注解 @EnableConfigurationProperties(value = {A.class}) 的值注册到BeanFactory中
+		 * */
 		getTypes(metadata).forEach(beanRegistrar::register);
 	}
 
 	private Set<Class<?>> getTypes(AnnotationMetadata metadata) {
+		// 拿到 @EnableConfigurationProperties 注解的值
 		return metadata.getAnnotations().stream(EnableConfigurationProperties.class)
 				.flatMap((annotation) -> Arrays.stream(annotation.getClassArray(MergedAnnotation.VALUE)))
 				.filter((type) -> void.class != type).collect(Collectors.toSet());
 	}
 
 	static void registerInfrastructureBeans(BeanDefinitionRegistry registry) {
+		// 注册三个bean ConfigurationPropertiesBindingPostProcessor 、ConfigurationPropertiesBinder.Factory 、 ConfigurationPropertiesBinder
 		ConfigurationPropertiesBindingPostProcessor.register(registry);
+		// 注册 BoundConfigurationProperties
 		BoundConfigurationProperties.register(registry);
 	}
 

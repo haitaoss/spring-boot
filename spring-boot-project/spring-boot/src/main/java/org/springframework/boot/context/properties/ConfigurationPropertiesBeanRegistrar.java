@@ -49,13 +49,16 @@ final class ConfigurationPropertiesBeanRegistrar {
 	}
 
 	void register(Class<?> type) {
+		// 拿到 type 上的 @ConfigurationProperties
 		MergedAnnotation<ConfigurationProperties> annotation = MergedAnnotations
 				.from(type, SearchStrategy.TYPE_HIERARCHY).get(ConfigurationProperties.class);
 		register(type, annotation);
 	}
 
 	void register(Class<?> type, MergedAnnotation<ConfigurationProperties> annotation) {
+		// 生成beanName
 		String name = getName(type, annotation);
+		// 不存在才注册
 		if (!containsBeanDefinition(name)) {
 			registerBeanDefinition(name, type, annotation);
 		}
@@ -83,23 +86,37 @@ final class ConfigurationPropertiesBeanRegistrar {
 
 	private void registerBeanDefinition(String beanName, Class<?> type,
 			MergedAnnotation<ConfigurationProperties> annotation) {
+		// type 必须得有 @ConfigurationProperties 注解
 		Assert.state(annotation.isPresent(), () -> "No " + ConfigurationProperties.class.getSimpleName()
 				+ " annotation found on  '" + type.getName() + "'.");
+		// 注册到BeanFactory中
 		this.registry.registerBeanDefinition(beanName, createBeanDefinition(beanName, type));
 	}
 
 	private BeanDefinition createBeanDefinition(String beanName, Class<?> type) {
+		/**
+		 * 推断出 bindMethod
+		 *
+		 * 注：构造器上有 @ConstructorBinding 就返回 VALUE_OBJECT
+		 * */
 		BindMethod bindMethod = BindMethod.forType(type);
 		RootBeanDefinition definition = new RootBeanDefinition(type);
 		definition.setAttribute(BindMethod.class.getName(), bindMethod);
 		if (bindMethod == BindMethod.VALUE_OBJECT) {
+			// 设置实例化的函数
 			definition.setInstanceSupplier(() -> createValueObject(beanName, type));
 		}
 		return definition;
 	}
 
 	private Object createValueObject(String beanName, Class<?> beanType) {
+		/**
+		 * 根据 beanType 上的 @ConfigurationProperties + beanName 构造出 ConfigurationPropertiesBean
+		 * */
 		ConfigurationPropertiesBean bean = ConfigurationPropertiesBean.forValueObject(beanType, beanName);
+		/**
+		 * 使用了 @EnableConfigurationProperties 就会注册这个bean
+		 * */
 		ConfigurationPropertiesBinder binder = ConfigurationPropertiesBinder.get(this.beanFactory);
 		try {
 			return binder.bindOrCreate(bean);

@@ -112,6 +112,9 @@ class ConfigDataLocationResolvers {
 
 	private List<ConfigDataResolutionResult> resolve(ConfigDataLocationResolver<?> resolver,
 			ConfigDataLocationResolverContext context, ConfigDataLocation location, Profiles profiles) {
+		/**
+		 * {@link StandardConfigDataLocationResolver#resolve(ConfigDataLocationResolverContext, ConfigDataLocation)}
+		 * */
 		List<ConfigDataResolutionResult> resolved = resolve(location, false, () -> resolver.resolve(context, location));
 		if (profiles == null) {
 			return resolved;

@@ -91,7 +91,9 @@ class ConfigurationPropertiesBinder {
 	BindResult<?> bind(ConfigurationPropertiesBean propertiesBean) {
 		Bindable<?> target = propertiesBean.asBindTarget();
 		ConfigurationProperties annotation = propertiesBean.getAnnotation();
+		// 拿到 BindHandler
 		BindHandler bindHandler = getBindHandler(target, annotation);
+		// 给 target 设置属性
 		return getBinder().bind(annotation.prefix(), target, bindHandler);
 	}
 
@@ -123,6 +125,7 @@ class ConfigurationPropertiesBinder {
 		if (!validators.isEmpty()) {
 			handler = new ValidationBindHandler(handler, validators.toArray(new Validator[0]));
 		}
+		// 从容器中获取 ConfigurationPropertiesBindHandlerAdvisor 类型的bean，对 handler 进行增强
 		for (ConfigurationPropertiesBindHandlerAdvisor advisor : getBindHandlerAdvisors()) {
 			handler = advisor.apply(handler);
 		}
@@ -191,6 +194,7 @@ class ConfigurationPropertiesBinder {
 	}
 
 	static void register(BeanDefinitionRegistry registry) {
+		// 注册两个bean ConfigurationPropertiesBinder.Factory 和 ConfigurationPropertiesBinder
 		if (!registry.containsBeanDefinition(FACTORY_BEAN_NAME)) {
 			BeanDefinition definition = BeanDefinitionBuilder
 					.rootBeanDefinition(ConfigurationPropertiesBinder.Factory.class).getBeanDefinition();

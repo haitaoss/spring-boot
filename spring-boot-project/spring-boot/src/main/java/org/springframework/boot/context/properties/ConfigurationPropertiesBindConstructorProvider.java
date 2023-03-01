@@ -45,8 +45,19 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 		if (type == null) {
 			return null;
 		}
+		/**
+		 * 找到标注了 @ConstructorBinding 的构造器，然后返回。找不到就是返回null
+		 *
+		 * 会校验两个东西：
+		 * 	1. 只允许有一个构造器标注了 @ConstructorBinding
+		 * 	2. @ConstructorBinding 标注的构造器必须是有参的
+		 * */
 		Constructor<?> constructor = findConstructorBindingAnnotatedConstructor(type);
+		/**
+		 * 父类是 Record 或者 存在有 @ConstructorBinding 的构造器
+		 * */
 		if (constructor == null && (isConstructorBindingType(type) || isNestedConstructorBinding)) {
+			// 只存在一个构造器，返回一个有参构造器
 			constructor = deduceBindConstructor(type);
 		}
 		return constructor;
@@ -59,6 +70,7 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 				return findAnnotatedConstructor(type, constructor);
 			}
 		}
+		// 找到标注了 @ConstructorBinding 的构造器，然后返回。找不到就是返回null
 		return findAnnotatedConstructor(type, type.getDeclaredConstructors());
 	}
 
@@ -66,8 +78,10 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 		Constructor<?> constructor = null;
 		for (Constructor<?> candidate : candidates) {
 			if (MergedAnnotations.from(candidate).isPresent(ConstructorBinding.class)) {
+				// @ConstructorBinding 标注的构造器是有参数的
 				Assert.state(candidate.getParameterCount() > 0,
 						() -> type.getName() + " declares @ConstructorBinding on a no-args constructor");
+				// 只允许一个构造器标注 @ConstructorBinding
 				Assert.state(constructor == null,
 						() -> type.getName() + " has more than one @ConstructorBinding constructor");
 				constructor = candidate;
@@ -77,6 +91,7 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 	}
 
 	private boolean isConstructorBindingType(Class<?> type) {
+		// 父类是 Record 或者 存在有 @ConstructorBinding 的构造器
 		return isImplicitConstructorBindingType(type) || isConstructorBindingAnnotatedType(type);
 	}
 

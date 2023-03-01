@@ -187,6 +187,7 @@ public final class ConditionEvaluationReport {
 				report = new ConditionEvaluationReport();
 				beanFactory.registerSingleton(BEAN_NAME, report);
 			}
+			// 给 report 设置 parentReport
 			locateParent(beanFactory.getParentBeanFactory(), report);
 			return report;
 		}

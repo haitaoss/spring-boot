@@ -87,6 +87,7 @@ class ConfigDataEnvironment {
 	static final ConfigDataLocation[] DEFAULT_SEARCH_LOCATIONS;
 	static {
 		List<ConfigDataLocation> locations = new ArrayList<>();
+		// optional: 是固定前缀， ConfigDataLocation.of 会截掉
 		locations.add(ConfigDataLocation.of("optional:classpath:/;optional:classpath:/config/"));
 		locations.add(ConfigDataLocation.of("optional:file:./;optional:file:./config/;optional:file:./config/*/"));
 		DEFAULT_SEARCH_LOCATIONS = locations.toArray(new ConfigDataLocation[0]);
@@ -145,11 +146,14 @@ class ConfigDataEnvironment {
 				.orElse(ConfigDataNotFoundAction.FAIL);
 		this.bootstrapContext = bootstrapContext;
 		this.environment = environment;
+		// 读取 spring.factories 文件中 key 为 ConfigDataLocationResolver 的
 		this.resolvers = createConfigDataLocationResolvers(logFactory, bootstrapContext, binder, resourceLoader);
 		this.additionalProfiles = additionalProfiles;
 		this.environmentUpdateListener = (environmentUpdateListener != null) ? environmentUpdateListener
 				: ConfigDataEnvironmentUpdateListener.NONE;
+		// 读取 spring.factories 文件中 key 为 ConfigDataLoader 的
 		this.loaders = new ConfigDataLoaders(logFactory, bootstrapContext, resourceLoader.getClassLoader());
+		// 构造出 Contributors
 		this.contributors = createContributors(binder);
 	}
 
@@ -165,14 +169,17 @@ class ConfigDataEnvironment {
 		PropertySource<?> defaultPropertySource = null;
 		for (PropertySource<?> propertySource : propertySources) {
 			if (DefaultPropertiesPropertySource.hasMatchingName(propertySource)) {
+				// 记录 defaultPropertySource
 				defaultPropertySource = propertySource;
 			}
 			else {
 				this.logger.trace(LogMessage.format("Creating wrapped config data contributor for '%s'",
 						propertySource.getName()));
+				// 将 propertySource 装饰成 ConfigDataEnvironmentContributor
 				contributors.add(ConfigDataEnvironmentContributor.ofExisting(propertySource));
 			}
 		}
+		// 添加初始化属性值
 		contributors.addAll(getInitialImportContributors(binder));
 		if (defaultPropertySource != null) {
 			this.logger.trace("Creating wrapped config data contributor for default property source");
@@ -192,9 +199,21 @@ class ConfigDataEnvironment {
 
 	private List<ConfigDataEnvironmentContributor> getInitialImportContributors(Binder binder) {
 		List<ConfigDataEnvironmentContributor> initialContributors = new ArrayList<>();
+		// 获取 "spring.config.import" 配置的路径，装饰成 ConfigDataEnvironmentContributor
 		addInitialImportContributors(initialContributors, bindLocations(binder, IMPORT_PROPERTY, EMPTY_LOCATIONS));
+		// 获取 "spring.config.additional-location" 配置的路径，装饰成 ConfigDataEnvironmentContributor
 		addInitialImportContributors(initialContributors,
 				bindLocations(binder, ADDITIONAL_LOCATION_PROPERTY, EMPTY_LOCATIONS));
+		/**
+		 * 获取 "spring.config.location" 配置的路径，装饰成 ConfigDataEnvironmentContributor
+		 *
+		 * 默认是
+		 * classpath:/
+		 * classpath:/config/
+		 * file:./
+		 * file:./config/
+		 * file:./config/'*'/
+		 * */
 		addInitialImportContributors(initialContributors,
 				bindLocations(binder, LOCATION_PROPERTY, DEFAULT_SEARCH_LOCATIONS));
 		return initialContributors;
@@ -223,13 +242,33 @@ class ConfigDataEnvironment {
 	void processAndApply() {
 		ConfigDataImporter importer = new ConfigDataImporter(this.logFactory, this.notFoundAction, this.resolvers,
 				this.loaders);
+
+		// 注册。目前不知道有啥用
 		registerBootstrapBinder(this.contributors, null, DENY_INACTIVE_BINDING);
+
+		/**
+		 * 处理 contributors 的初始化，其实就是加载并解析 contributors 路径下存在的属性文件
+		 * 其目的是找到所有可能的属性文件(比如 application.yml)
+		 *
+		 * contributors 是在构造器设置的值 {@link ConfigDataEnvironment#ConfigDataEnvironment(DeferredLogFactory, ConfigurableBootstrapContext, ConfigurableEnvironment, ResourceLoader, Collection, ConfigDataEnvironmentUpdateListener)}
+		 * */
 		ConfigDataEnvironmentContributors contributors = processInitial(this.contributors, importer);
+
 		ConfigDataActivationContext activationContext = createActivationContext(
 				contributors.getBinder(null, BinderOption.FAIL_ON_BIND_TO_INACTIVE_SOURCE));
+
+		// 处理没有 profile
 		contributors = processWithoutProfiles(contributors, importer, activationContext);
+
+		// 拿到 profile
 		activationContext = withProfiles(contributors, activationContext);
+
+		/**
+		 * 根据 profile 的名字，找到属性文件
+		 * */
 		contributors = processWithProfiles(contributors, importer, activationContext);
+
+		// 将最终的结果设置到 environment 中，也就是属性文件生效了
 		applyToEnvironment(contributors, activationContext, importer.getLoadedLocations(),
 				importer.getOptionalLocations());
 	}
@@ -237,6 +276,7 @@ class ConfigDataEnvironment {
 	private ConfigDataEnvironmentContributors processInitial(ConfigDataEnvironmentContributors contributors,
 			ConfigDataImporter importer) {
 		this.logger.trace("Processing initial config data environment contributors without activation context");
+		// 处理 import
 		contributors = contributors.withProcessedImports(importer, null);
 		registerBootstrapBinder(contributors, null, DENY_INACTIVE_BINDING);
 		return contributors;
@@ -271,7 +311,17 @@ class ConfigDataEnvironment {
 				BinderOption.FAIL_ON_BIND_TO_INACTIVE_SOURCE);
 		try {
 			Set<String> additionalProfiles = new LinkedHashSet<>(this.additionalProfiles);
+			/**
+			 * 从 contributors 中拿到扩展的 profile 的值，会读取 spring.profiles.include
+			 *
+			 * 注：可以在多个属性文件中设置，value会合并
+			 * */
 			additionalProfiles.addAll(getIncludedProfiles(contributors, activationContext));
+			/**
+			 * 实例化的过程中会读取 spring.profiles.active 的值
+			 *
+			 * 注：多个属性文件中设置也没用，先读到才使用
+			 * */
 			Profiles profiles = new Profiles(this.environment, binder, additionalProfiles);
 			return activationContext.withProfiles(profiles);
 		}
@@ -288,10 +338,14 @@ class ConfigDataEnvironment {
 		PlaceholdersResolver placeholdersResolver = new ConfigDataEnvironmentContributorPlaceholdersResolver(
 				contributors, activationContext, null, true);
 		Set<String> result = new LinkedHashSet<>();
+		// 遍历
 		for (ConfigDataEnvironmentContributor contributor : contributors) {
+			// 拿到 ConfigurationPropertySource
 			ConfigurationPropertySource source = contributor.getConfigurationPropertySource();
+			// 存在属性信息 且 不是忽略的
 			if (source != null && !contributor.hasConfigDataOption(ConfigData.Option.IGNORE_PROFILES)) {
 				Binder binder = new Binder(Collections.singleton(source), placeholdersResolver);
+				// 拿到 spring.profiles.include 的值
 				binder.bind(Profiles.INCLUDE_PROFILES, STRING_LIST).ifBound((includes) -> {
 					if (!contributor.isActive(activationContext)) {
 						InactiveConfigDataAccessException.throwIfPropertyFound(contributor, Profiles.INCLUDE_PROFILES);
@@ -308,7 +362,9 @@ class ConfigDataEnvironment {
 	private ConfigDataEnvironmentContributors processWithProfiles(ConfigDataEnvironmentContributors contributors,
 			ConfigDataImporter importer, ConfigDataActivationContext activationContext) {
 		this.logger.trace("Processing config data environment contributors with profile activation context");
+		// 处理导入
 		contributors = contributors.withProcessedImports(importer, activationContext);
+		// 注册一下，也不知道有啥用
 		registerBootstrapBinder(contributors, activationContext, ALLOW_INACTIVE_BINDING);
 		return contributors;
 	}
@@ -325,12 +381,16 @@ class ConfigDataEnvironment {
 		checkForInvalidProperties(contributors);
 		checkMandatoryLocations(contributors, activationContext, loadedLocations, optionalLocations);
 		MutablePropertySources propertySources = this.environment.getPropertySources();
+
+		// 将满足条件的 contributor 的 PropertySource 扩展到 propertySources
 		applyContributor(contributors, activationContext, propertySources);
+		// 将默认的移动到最后
 		DefaultPropertiesPropertySource.moveToEnd(propertySources);
 		Profiles profiles = activationContext.getProfiles();
 		this.logger.trace(LogMessage.format("Setting default profiles: %s", profiles.getDefault()));
 		this.environment.setDefaultProfiles(StringUtils.toStringArray(profiles.getDefault()));
 		this.logger.trace(LogMessage.format("Setting active profiles: %s", profiles.getActive()));
+		// 设置给 environment
 		this.environment.setActiveProfiles(StringUtils.toStringArray(profiles.getActive()));
 		this.environmentUpdateListener.onSetProfiles(profiles);
 	}
@@ -340,6 +400,7 @@ class ConfigDataEnvironment {
 		this.logger.trace("Applying config data environment contributions");
 		for (ConfigDataEnvironmentContributor contributor : contributors) {
 			PropertySource<?> propertySource = contributor.getPropertySource();
+			// BOUND_IMPORT 就是存在文件
 			if (contributor.getKind() == ConfigDataEnvironmentContributor.Kind.BOUND_IMPORT && propertySource != null) {
 				if (!contributor.isActive(activationContext)) {
 					this.logger.trace(
@@ -348,6 +409,7 @@ class ConfigDataEnvironment {
 				else {
 					this.logger
 							.trace(LogMessage.format("Adding imported property source '%s'", propertySource.getName()));
+					// 放到最后
 					propertySources.addLast(propertySource);
 					this.environmentUpdateListener.onPropertySourceAdded(propertySource, contributor.getLocation(),
 							contributor.getResource());

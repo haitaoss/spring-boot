@@ -335,12 +335,22 @@ public class Binder {
 	private <T> T bind(ConfigurationPropertyName name, Bindable<T> target, BindHandler handler, Context context,
 			boolean allowRecursiveBinding, boolean create) {
 		try {
+			/**
+			 * 预热动作
+			 *
+			 * {@link AbstractBindHandler#onStart(ConfigurationPropertyName, Bindable, BindContext)}
+			 * */
 			Bindable<T> replacementTarget = handler.onStart(name, target, context);
 			if (replacementTarget == null) {
+				// 处理绑定结果，就是做类型转换而已
 				return handleBindResult(name, target, handler, context, null, create);
 			}
 			target = replacementTarget;
+			/**
+			 * 绑定对象。就是给属性设置值
+			 * */
 			Object bound = bindObject(name, target, handler, context, allowRecursiveBinding);
+			// 处理绑定结果，就是做类型转换而已
 			return handleBindResult(name, target, handler, context, bound, create);
 		}
 		catch (Exception ex) {
@@ -390,16 +400,20 @@ public class Binder {
 
 	private <T> Object bindObject(ConfigurationPropertyName name, Bindable<T> target, BindHandler handler,
 			Context context, boolean allowRecursiveBinding) {
+		// 找到能处理 name 的 ConfigurationProperty
 		ConfigurationProperty property = findProperty(name, target, context);
+		// 没有符合的属性，就return，也就是不进行属性设置
 		if (property == null && context.depth != 0 && containsNoDescendantOf(context.getSources(), name)) {
 			return null;
 		}
+		// target 是 Map、Collection、数组 类型的情况
 		AggregateBinder<?> aggregateBinder = getAggregateBinder(target, context);
 		if (aggregateBinder != null) {
 			return bindAggregate(name, target, handler, context, aggregateBinder);
 		}
 		if (property != null) {
 			try {
+				// 从 context 中获取属性值
 				return bindProperty(target, context, property);
 			}
 			catch (ConverterNotFoundException ex) {
@@ -411,6 +425,7 @@ public class Binder {
 				throw ex;
 			}
 		}
+		// 真正设置属性的代码
 		return bindDataObject(name, target, handler, context, allowRecursiveBinding);
 	}
 
@@ -465,14 +480,17 @@ public class Binder {
 		if (isUnbindableBean(name, target, context)) {
 			return null;
 		}
+		// 拿到设置属性的类型
 		Class<?> type = target.getType().resolve(Object.class);
 		if (!allowRecursiveBinding && context.isBindingDataObject(type)) {
 			return null;
 		}
+		// propertyBinder 目的就是给 属性名拼接上 name 前缀
 		DataObjectPropertyBinder propertyBinder = (propertyName, propertyTarget) -> bind(name.append(propertyName),
 				propertyTarget, handler, context, false, false);
 		return context.withDataObject(type, () -> {
 			for (DataObjectBinder dataObjectBinder : this.dataObjectBinders) {
+				// 设置属性
 				Object instance = dataObjectBinder.bind(name, target, context, propertyBinder);
 				if (instance != null) {
 					return instance;
@@ -526,7 +544,9 @@ public class Binder {
 	 * @since 2.2.0
 	 */
 	public static Binder get(Environment environment, BindHandler defaultBindHandler) {
+		// 获取名叫 configurationProperties 的 ConfigurationPropertySourcesPropertySource
 		Iterable<ConfigurationPropertySource> sources = ConfigurationPropertySources.get(environment);
+		// 构造解析占位符的 ${name:defaultValue}
 		PropertySourcesPlaceholdersResolver placeholdersResolver = new PropertySourcesPlaceholdersResolver(environment);
 		return new Binder(sources, placeholdersResolver, null, null, defaultBindHandler);
 	}

@@ -80,6 +80,9 @@ public class ConfigurationPropertiesBindingPostProcessor
 	}
 
 	private void bind(ConfigurationPropertiesBean bean) {
+		/**
+		 * 简单理解就是bean对象得有 @ConfigurationProperties 才行
+		 * */
 		if (bean == null || hasBoundValueObject(bean.getName())) {
 			return;
 		}
@@ -94,6 +97,11 @@ public class ConfigurationPropertiesBindingPostProcessor
 	}
 
 	private boolean hasBoundValueObject(String beanName) {
+		/**
+		 * 这种类型是设置了supplier，在实例化的时候就完成了 @ConfigurationProperties 的解析
+		 *
+		 * {@link ConfigurationPropertiesBeanRegistrar#createBeanDefinition(String, Class)}
+		 * */
 		return this.registry.containsBeanDefinition(beanName) && BindMethod.VALUE_OBJECT
 				.equals(this.registry.getBeanDefinition(beanName).getAttribute(BindMethod.class.getName()));
 	}
@@ -106,12 +114,14 @@ public class ConfigurationPropertiesBindingPostProcessor
 	 */
 	public static void register(BeanDefinitionRegistry registry) {
 		Assert.notNull(registry, "Registry must not be null");
+		// BeanFactory中不存在，就注册 ConfigurationPropertiesBindingPostProcessor
 		if (!registry.containsBeanDefinition(BEAN_NAME)) {
 			BeanDefinition definition = BeanDefinitionBuilder
 					.rootBeanDefinition(ConfigurationPropertiesBindingPostProcessor.class).getBeanDefinition();
 			definition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 			registry.registerBeanDefinition(BEAN_NAME, definition);
 		}
+		// 注册两个bean ConfigurationPropertiesBinder.Factory 和 ConfigurationPropertiesBinder
 		ConfigurationPropertiesBinder.register(registry);
 	}
 

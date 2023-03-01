@@ -97,7 +97,9 @@ class ConfigDataEnvironmentContributors implements Iterable<ConfigDataEnvironmen
 		ConfigDataEnvironmentContributors result = this;
 		int processed = 0;
 		while (true) {
+			// 获取带解析的 contributor
 			ConfigDataEnvironmentContributor contributor = getNextToProcess(result, activationContext, importPhase);
+			// 说明都解析完了，返回解析的结果
 			if (contributor == null) {
 				this.logger.trace(LogMessage.format("Processed imports for of %d contributors", processed));
 				return result;
@@ -108,13 +110,34 @@ class ConfigDataEnvironmentContributors implements Iterable<ConfigDataEnvironmen
 						result.getRoot().withReplacement(contributor, bound));
 				continue;
 			}
+			// 是用来拼接路径的，判断拼接完的路径下的文件是否存在
 			ConfigDataLocationResolverContext locationResolverContext = new ContributorConfigDataLocationResolverContext(
 					result, contributor, activationContext);
 			ConfigDataLoaderContext loaderContext = new ContributorDataLoaderContext(this);
 			List<ConfigDataLocation> imports = contributor.getImports();
 			this.logger.trace(LogMessage.format("Processing imports %s", imports));
+
+			/**
+			 * 解析并且读取配置文件
+			 *
+			 * 思路就是:
+			 * 	1. imports的是路径 就拼接上 application 然后判断资源是否存在
+			 * 	2. imports是文件 判断资源是否存在
+			 * 	3. 存在就解析文件成 PropertySource
+			 *
+			 * 主要是会使用这几个类。读取 META-INF/spring.factories 得到的：
+			 * 	- org.springframework.boot.context.config.ConfigDataLocationResolver
+			 *  	是用来判断指定路径下是否存在属性文件，文件允许啥后缀和怎么解析是依赖于 PropertySourceLoader
+			 *
+			 * 	- org.springframework.boot.env.PropertySourceLoader
+			 *  	这是用来允许哪些后缀的属性文件和解析属性文件成 PropertiesSource 的
+			 *
+			 * 	- org.springframework.boot.context.config.ConfigDataLoader
+			 *  	是用来处理 ConfigDataLocationResolver 的解析结果
+			 * */
 			Map<ConfigDataResolutionResult, ConfigData> imported = importer.resolveAndLoad(activationContext,
 					locationResolverContext, loaderContext, imports);
+
 			this.logger.trace(LogMessage.of(() -> getImportedMessage(imported.keySet())));
 			ConfigDataEnvironmentContributor contributorAndChildren = contributor.withChildren(importPhase,
 					asContributors(imported));
@@ -140,7 +163,9 @@ class ConfigDataEnvironmentContributors implements Iterable<ConfigDataEnvironmen
 
 	private ConfigDataEnvironmentContributor getNextToProcess(ConfigDataEnvironmentContributors contributors,
 			ConfigDataActivationContext activationContext, ImportPhase importPhase) {
+		// 迭代
 		for (ConfigDataEnvironmentContributor contributor : contributors.getRoot()) {
+			// contributor 未被解析过才返回  或者是 profile
 			if (contributor.getKind() == Kind.UNBOUND_IMPORT
 					|| isActiveWithUnprocessedImports(activationContext, importPhase, contributor)) {
 				return contributor;

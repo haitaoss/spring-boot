@@ -85,6 +85,7 @@ public class StandardConfigDataLocationResolver
 	 */
 	public StandardConfigDataLocationResolver(Log logger, Binder binder, ResourceLoader resourceLoader) {
 		this.logger = logger;
+		// 读取 spring.factories 文件
 		this.propertySourceLoaders = SpringFactoriesLoader.loadFactories(PropertySourceLoader.class,
 				getClass().getClassLoader());
 		this.configNames = getConfigNames(binder);
@@ -123,6 +124,7 @@ public class StandardConfigDataLocationResolver
 			ConfigDataLocation[] configDataLocations) {
 		Set<StandardConfigDataReference> references = new LinkedHashSet<>();
 		for (ConfigDataLocation configDataLocation : configDataLocations) {
+			// 路径拼接上 application
 			references.addAll(getReferences(context, configDataLocation));
 		}
 		return references;
@@ -132,6 +134,7 @@ public class StandardConfigDataLocationResolver
 			ConfigDataLocation configDataLocation) {
 		String resourceLocation = getResourceLocation(context, configDataLocation);
 		try {
+			// 是目录 就拼接拼接上 application 后缀
 			if (isDirectory(resourceLocation)) {
 				return getReferencesForDirectory(configDataLocation, resourceLocation, NO_PROFILE);
 			}
@@ -217,6 +220,11 @@ public class StandardConfigDataLocationResolver
 		if (extensionHintLocation) {
 			file = extensionHintMatcher.group(1) + extensionHintMatcher.group(2);
 		}
+		/**
+		 * 默认就两个，是通过 spring.factories 文件配置的。
+		 *
+		 * 默认就是校验文件有 yaml、yml、properties、xml 后缀
+		 * */
 		for (PropertySourceLoader propertySourceLoader : this.propertySourceLoaders) {
 			String extension = getLoadableFileExtension(propertySourceLoader, file);
 			if (extension != null) {
@@ -246,6 +254,7 @@ public class StandardConfigDataLocationResolver
 	private List<StandardConfigDataResource> resolve(Set<StandardConfigDataReference> references) {
 		List<StandardConfigDataResource> resolved = new ArrayList<>();
 		for (StandardConfigDataReference reference : references) {
+			// reference对应的文件存在 才会有具体的值，否则返回的是空集合，也就是啥都不添加
 			resolved.addAll(resolve(reference));
 		}
 		if (resolved.isEmpty()) {
@@ -299,6 +308,7 @@ public class StandardConfigDataLocationResolver
 
 	private List<StandardConfigDataResource> resolveNonPattern(StandardConfigDataReference reference) {
 		Resource resource = this.resourceLoader.getResource(reference.getResourceLocation());
+		// 资源不存在就返回 空集合
 		if (!resource.exists() && reference.isSkippable()) {
 			logSkippingResource(reference);
 			return Collections.emptyList();
