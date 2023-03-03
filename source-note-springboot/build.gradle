@@ -8,9 +8,9 @@ version '2.7.8'
 description = "source note spring"
 
 repositories {
-    maven { name "Alibaba" ; url 'https://maven.aliyun.com/repository/public' }
-    maven { name "Bstek" ; url 'https://nexus.bsdn.org/content/groups/public/' }
-    maven { name "M2" ; url 'https://plugins.gradle.org/m2/' }
+    maven { name "Alibaba"; url 'https://maven.aliyun.com/repository/public' }
+    maven { name "Bstek"; url 'https://nexus.bsdn.org/content/groups/public/' }
+    maven { name "M2"; url 'https://plugins.gradle.org/m2/' }
     maven { url 'https://maven.aliyun.com/nexus/content/repositories/jcenter' }
     mavenCentral()
 }
@@ -28,6 +28,18 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+
+    testImplementation "org.aspectj:aspectjweaver:1.9.7"
+
+    // SpringBoot测试库。一般来说用 第三个就行了，包含了前两个
+    // 包含核心项目
+    //implementation project(":spring-boot-project:spring-boot-test")
+    // 支持测试自动配置(包含spring-boot-test)
+    //implementation project(":spring-boot-project:spring-boot-test-autoconfigure")
+    // 它导入SpringBoot测试模块以及JUnitJupiter、AssertJ、Hamcrest和许多其他有用的库(包含前面两个)
+    implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-test")
+
+
 
 }
 

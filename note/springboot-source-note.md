@@ -281,8 +281,6 @@ public class Main {
 }
 ```
 
-
-
 # 自动装配举例
 
 ## Tomcat 自动装配原理
@@ -1134,4 +1132,95 @@ public static void main(String[] args) throws Exception {
          * 把配置类注册到ioc 容器中
          * {@link SpringApplication#prepareContext(DefaultBootstrapContext, ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)}
          * */
+```
+
+
+
+# SpringBoot Test
+
+https://docs.spring.io/spring-boot/docs/2.7.9/reference/html/features.html#features.testing
+
+> Spring Boot提供了一个`@SpringBootTest`注解，当您需要Spring Boot特性时可以使用。注解的工作原理是通过SpringApplication创建测试中使用的ApplicationContext。除了@SpringBootTest之外，还提供了许多其他注解来测试应用程序的更具体的功能，比如(@JdbcTest、@WebMvcTest)。
+>
+> 如果没有指定类，搜索算法从包含测试的包开始，直到找到一个用 `@SpringBootApplication` 或 `@SpringBootConfiguration` 标注的类。只要您以合理的方式构造代码，通常就可以找到主配置
+
+> 如果您使用的是JUnit 4，请不要忘记还将 `@RunWith(SpringRunner.class)` 添加到测试中，否则注释将被忽略。如果您使用的是JUnit 5，则不需要添加与 `@SpringBootTest` 等效的 `@ExtendWith(SpringExtension.class)` ，其他 `@…Test` 注释也不需要，因为已经使用它进行了注释。
+
+```java
+@RunWith(SpringRunner.class)
+@SpringBootTest
+public class Main {
+}
+```
+
+比如：
+
+```java
+@BootstrapWith(SpringBootTestContextBootstrapper.class)
+@ExtendWith(SpringExtension.class)
+public @interface SpringBootTest {}
+
+@BootstrapWith(JdbcTestContextBootstrapper.class)
+@ExtendWith(SpringExtension.class)
+public @interface JdbcTest {}
+```
+
+> 默认情况下， `@SpringBootTest` 不会启动服务器。您可以使用 `@SpringBootTest` 的 `webEnvironment` 属性来进一步细化您的测试运行方式
+
+```java
+@SpringBootTest(
+        // 配置类
+        classes = Main.class,
+        // 指定环境。因为默认是不会使用 WebApplicationContext
+        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+        // webEnvironment = SpringBootTest.WebEnvironment.NONE,
+        // 配置属性
+        properties = "spring.profiles.active=haitao"
+)
+public class Main {
+    @Autowired
+    ApplicationContext applicationContext;
+
+    @Test
+    public void test(){
+        System.out.println(applicationContext.getClass());
+        System.out.println(Arrays.toString(applicationContext.getBeanDefinitionNames()));
+    }
+}
+```
+
+> 默认情况下会将标注了 `@SpringBootApplication` 的类用作测试的配置类。
+>
+> 因此，不要在应用程序的主类中添加特定特定功能的配置这非常重要。假设您正在使用Spring Batch，并且依赖于它的自动配置，您可以如下定义
+
+```java
+@SpringBootApplication
+public class MyApplication {
+}
+
+
+@Configuration(proxyBeanMethods = false)
+@EnableBatchProcessing
+public class MyBatchConfiguration { // 这个得和 MyApplication 在同包或者子包下才行
+}
+```
+
+好处是，下面的测试并不会注册 `MyBatchConfiguration` 从而可以实现简单的测试
+
+> 具体的 `@XxTest` 会扫描那些bean，可以看官网。
+>
+> [比如 @WebMvcTest](https://docs.spring.io/spring-boot/docs/2.7.9/reference/html/features.html#features.testing.spring-boot-applications.spring-mvc-tests)
+
+```java
+@WebMvcTest
+public class Main {
+    @Autowired
+    ApplicationContext applicationContext;
+
+    @Test
+    public void test(){
+        System.out.println(applicationContext.getClass());
+        System.out.println(Arrays.toString(applicationContext.getBeanDefinitionNames()));
+    }
+}
 ```
