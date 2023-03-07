@@ -31,6 +31,7 @@ import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.boot.Banner.Mode;
+import org.springframework.boot.context.event.EventPublishingRunListener;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
@@ -255,7 +256,11 @@ public class SpringApplication {
                 getSpringFactoriesInstances(BootstrapRegistryInitializer.class));
         // 这是用来配置IOC容器的，配置之后才会refresh
         setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
-        // 这是用来在 SpringBoot 启动环节 接收事件的，并不是IOC容器里面的事件
+        /**
+         * 这是用来在 SpringBoot 启动环节 接收事件的，并且会在构造IOC容器时，将这些 ApplicationListener 也扩展给 IOC容器
+         * {@link SpringApplication#prepareContext(DefaultBootstrapContext, ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)}
+         * {@link EventPublishingRunListener#contextLoaded(ConfigurableApplicationContext)}
+         * */
         setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
         // 记录启动类
         this.mainApplicationClass = deduceMainApplicationClass();
@@ -512,7 +517,12 @@ public class SpringApplication {
         // 注册 sources 到IOC容器中
         load(context, sources.toArray(new Object[0]));
         /**
-         * 回调 {@link SpringApplicationRunListener#contextLoaded(ConfigurableApplicationContext)}
+         * 回调
+         * {@link SpringApplicationRunListener#contextLoaded(ConfigurableApplicationContext)}
+         * {@link EventPublishingRunListener#contextLoaded(ConfigurableApplicationContext)}
+         *
+         * 1. 将 listeners 中的 ApplicationListener 扩展给 context
+         * 2. 发布事件 ApplicationPreparedEvent
          * */
         listeners.contextLoaded(context);
     }

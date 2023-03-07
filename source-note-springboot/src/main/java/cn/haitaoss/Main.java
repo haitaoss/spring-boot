@@ -51,8 +51,9 @@ public class Main {
 
         /*SpringApplication springApplication = new SpringApplicationBuilder()
                 .sources(Main.class)
+                .web(WebApplicationType.NONE)
                 .build(args);
-        springApplication.setApplicationContextFactory(type -> new AnnotationConfigApplicationContext());
+        //springApplication.setApplicationContextFactory(type -> new AnnotationConfigApplicationContext());
         ConfigurableApplicationContext context = springApplication.run(args);*/
 
         Object bean = context.getBean(AutoConfigurationPackages.class.getName());

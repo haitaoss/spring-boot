@@ -100,6 +100,8 @@ public @interface EnableAutoConfiguration {
  *      Tips：
  *          1. 可以使用 ApplicationContextFactory 来生成 ConfigurableEnvironment
  *          2. 回调 SpringApplicationRunListener#environmentPrepared 配置 ConfigurableEnvironment
+ *              Tips：application.yml 或者 SpringCloud 的 bootstrap.yml 就是通过这里的回调实现的
+ *
  *          3. 修改属性的访问顺序为： 命令行参数 -> 系统属性 -> 环境变量 ... -> 默认属性(默认是空的)
  *
  *  6. 构造出 Banner 并打印出banner的内容
@@ -122,9 +124,10 @@ public @interface EnableAutoConfiguration {
  *          3. 回调 ApplicationContextInitializer、SpringApplicationRunListener、bootstrapContext 方法
  *              3.1 初始化IOC容器    ApplicationContextInitializer#initialize
  *              3.2 配置IOC容器     SpringApplicationRunListener#contextPrepared
- *              3.3 完成DefaultBootstrapContext的生命周期      DefaultBootstrapContext#close          
+ *              3.3 完成DefaultBootstrapContext的生命周期      DefaultBootstrapContext#close
  *              3.4 IOC容器配置好了   SpringApplicationRunListener#contextLoaded
- *              
+ *                  Tips：将 listeners 中的 ApplicationListener 扩展给 context
+ *
  *          4. 添加单例bean：springApplicationArguments、springBootBanner
  *          5. 设置两个属性 allowCircularReferences、allowBeanDefinitionOverriding
  *          6. 添加两个BeanFactoryPostProcessor：

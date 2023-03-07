@@ -96,10 +96,13 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 	public void contextLoaded(ConfigurableApplicationContext context) {
 		for (ApplicationListener<?> listener : this.application.getListeners()) {
 			if (listener instanceof ApplicationContextAware) {
+				// 设置IOC容器
 				((ApplicationContextAware) listener).setApplicationContext(context);
 			}
+			// 给IOC容器 添加 listener
 			context.addApplicationListener(listener);
 		}
+		// 发布事件
 		this.initialMulticaster.multicastEvent(new ApplicationPreparedEvent(this.application, this.args, context));
 	}
 

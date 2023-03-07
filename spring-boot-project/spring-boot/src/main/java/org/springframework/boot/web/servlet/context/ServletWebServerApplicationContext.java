@@ -185,14 +185,14 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 			/**
 			 * 生成 webServer 然后启动服务
 			 *
-			 * todo 感觉不对劲了，那么 DispatcherServlet 是如何启动的？？？
 			 * */
 			this.webServer = factory.getWebServer(getSelfInitializer());
 			createWebServer.end();
 			/**
 			 * 注册两个 SmartLifecycle 的bean。
 			 *
-			 * 注：就是在这个地方会触发，下面两个 SmartLifecycle 的 start 方法 {@link AbstractApplicationContext#finishRefresh()}
+			 * 注：就是在这个地方 {@link AbstractApplicationContext#finishRefresh()}
+			 * 		会触发下面两个 SmartLifecycle 的 start 方法
 			 * */
 			getBeanFactory().registerSingleton("webServerGracefulShutdown",
 					new WebServerGracefulShutdownLifecycle(this.webServer));
