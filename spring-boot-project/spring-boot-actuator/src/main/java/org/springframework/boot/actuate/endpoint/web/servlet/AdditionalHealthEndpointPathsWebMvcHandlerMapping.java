@@ -54,8 +54,10 @@ public class AdditionalHealthEndpointPathsWebMvcHandlerMapping extends AbstractW
 			String matchAllRemainingPathSegmentsVariable = predicate.getMatchAllRemainingPathSegmentsVariable();
 			if (matchAllRemainingPathSegmentsVariable != null) {
 				for (HealthEndpointGroup group : this.groups) {
+					// 存在 additionalPath
 					AdditionalHealthEndpointPath additionalPath = group.getAdditionalPath();
 					if (additionalPath != null) {
+						// 注册映射关系
 						registerMapping(this.endpoint, predicate, operation, additionalPath.getValue());
 					}
 				}

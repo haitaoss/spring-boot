@@ -20,6 +20,9 @@ dependencies {
     implementation "org.yaml:snakeyaml"
     implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-web")
 
+    // 测试执行器
+    implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-actuator")
+
     // lombok
     annotationProcessor 'org.projectlombok:lombok:1.18.2'
     compileOnly 'org.projectlombok:lombok:1.18.2'
@@ -38,7 +41,6 @@ dependencies {
     //implementation project(":spring-boot-project:spring-boot-test-autoconfigure")
     // 它导入SpringBoot测试模块以及JUnitJupiter、AssertJ、Hamcrest和许多其他有用的库(包含前面两个)
     implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-test")
-
 
 
 }

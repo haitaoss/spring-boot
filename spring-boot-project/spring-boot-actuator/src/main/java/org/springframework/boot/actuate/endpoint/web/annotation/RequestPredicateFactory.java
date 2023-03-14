@@ -16,11 +16,6 @@
 
 package org.springframework.boot.actuate.endpoint.web.annotation;
 
-import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.stream.Stream;
-
 import org.springframework.boot.actuate.endpoint.OperationType;
 import org.springframework.boot.actuate.endpoint.annotation.DiscoveredOperationMethod;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
@@ -33,6 +28,11 @@ import org.springframework.boot.actuate.endpoint.web.WebOperationRequestPredicat
 import org.springframework.core.ResolvableType;
 import org.springframework.core.io.Resource;
 import org.springframework.util.Assert;
+
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.stream.Stream;
 
 /**
  * Factory to create a {@link WebOperationRequestPredicate}.
@@ -53,10 +53,13 @@ class RequestPredicateFactory {
 
 	WebOperationRequestPredicate getRequestPredicate(String rootPath, DiscoveredOperationMethod operationMethod) {
 		Method method = operationMethod.getMethod();
+		// 遍历方法的参数列表，过滤出有 @Selector 的
 		OperationParameter[] selectorParameters = operationMethod.getParameters().stream().filter(this::hasSelector)
 				.toArray(OperationParameter[]::new);
 		OperationParameter allRemainingPathSegmentsParameter = getAllRemainingPathSegmentsParameter(selectorParameters);
+		// 构造出访问路径
 		String path = getPath(rootPath, selectorParameters, allRemainingPathSegmentsParameter != null);
+		// 将注解映射成指定的 HttpMethod
 		WebEndpointHttpMethod httpMethod = determineHttpMethod(operationMethod.getOperationType());
 		Collection<String> consumes = getConsumes(httpMethod, method);
 		Collection<String> produces = getProduces(operationMethod, method);

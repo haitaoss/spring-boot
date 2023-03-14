@@ -16,50 +16,16 @@
 
 package org.springframework.boot.actuate.endpoint.web.servlet;
 
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import reactor.core.publisher.Flux;
-
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.boot.actuate.endpoint.InvalidEndpointRequestException;
-import org.springframework.boot.actuate.endpoint.InvocationContext;
-import org.springframework.boot.actuate.endpoint.OperationArgumentResolver;
-import org.springframework.boot.actuate.endpoint.ProducibleOperationArgumentResolver;
-import org.springframework.boot.actuate.endpoint.SecurityContext;
+import org.springframework.boot.actuate.endpoint.*;
+import org.springframework.boot.actuate.endpoint.annotation.DiscoveredOperationMethod;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
-import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
-import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
-import org.springframework.boot.actuate.endpoint.web.WebOperation;
-import org.springframework.boot.actuate.endpoint.web.WebOperationRequestPredicate;
-import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
+import org.springframework.boot.actuate.endpoint.invoke.reflect.ReflectiveOperationInvoker;
+import org.springframework.boot.actuate.endpoint.web.*;
 import org.springframework.boot.web.context.WebServerApplicationContext;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.http.server.ServletServerHttpRequest;
-import org.springframework.util.AntPathMatcher;
-import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
-import org.springframework.util.ReflectionUtils;
-import org.springframework.util.StringUtils;
+import org.springframework.util.*;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -74,6 +40,15 @@ import org.springframework.web.servlet.handler.RequestMatchResult;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfoHandlerMapping;
 import org.springframework.web.util.pattern.PathPatternParser;
+import reactor.core.publisher.Flux;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.security.Principal;
+import java.util.*;
+import java.util.function.Function;
 
 /**
  * A custom {@link HandlerMapping} that makes {@link ExposableWebEndpoint web endpoints}
@@ -178,6 +153,9 @@ public abstract class AbstractWebMvcEndpointHandlerMapping extends RequestMappin
 				registerMappingForOperation(endpoint, operation);
 			}
 		}
+		/**
+		 * 是否额外添加一个 Mapping。其实就是添加 /actuator 的映射关系
+		 * */
 		if (this.shouldRegisterLinksMapping) {
 			registerLinksMapping();
 		}
@@ -204,6 +182,11 @@ public abstract class AbstractWebMvcEndpointHandlerMapping extends RequestMappin
 
 	private void registerMappingForOperation(ExposableWebEndpoint endpoint, WebOperation operation) {
 		WebOperationRequestPredicate predicate = operation.getRequestPredicate();
+		/**
+		 * 拿到路径
+		 *
+		 * 是在这里解析的 {@link RequestPredicateFactory#getRequestPredicate(String, DiscoveredOperationMethod)}
+		 * */
 		String path = predicate.getPath();
 		String matchAllRemainingPathSegmentsVariable = predicate.getMatchAllRemainingPathSegmentsVariable();
 		if (matchAllRemainingPathSegmentsVariable != null) {
@@ -216,6 +199,7 @@ public abstract class AbstractWebMvcEndpointHandlerMapping extends RequestMappin
 			WebOperation operation, String path) {
 		ServletWebOperation servletWebOperation = wrapServletWebOperation(endpoint, operation,
 				new ServletWebOperationAdapter(operation));
+        // createRequestMappingInfo 就能知道可以接收什么方法
 		registerMapping(createRequestMappingInfo(predicate, path), new OperationHandler(servletWebOperation),
 				this.handleMethod);
 	}
@@ -348,8 +332,13 @@ public abstract class AbstractWebMvcEndpointHandlerMapping extends RequestMappin
 							return WebServerNamespace
 									.from(WebServerApplicationContext.getServerNamespace(applicationContext));
 						});
+				// 上下文
 				InvocationContext invocationContext = new InvocationContext(securityContext, arguments,
 						serverNamespaceArgumentResolver, producibleOperationArgumentResolver);
+				/**
+				 * 执行
+				 * {@link ReflectiveOperationInvoker#invoke(InvocationContext)}
+				 * */
 				return handleResult(this.operation.invoke(invocationContext), HttpMethod.resolve(request.getMethod()));
 			}
 			catch (InvalidEndpointRequestException ex) {

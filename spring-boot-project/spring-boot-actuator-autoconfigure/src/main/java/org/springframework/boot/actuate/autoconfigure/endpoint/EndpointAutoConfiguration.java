@@ -16,14 +16,13 @@
 
 package org.springframework.boot.actuate.autoconfigure.endpoint;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.actuate.endpoint.InvocationContext;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.EndpointConverter;
 import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
 import org.springframework.boot.actuate.endpoint.invoke.convert.ConversionServiceParameterValueMapper;
+import org.springframework.boot.actuate.endpoint.invoke.reflect.ReflectiveOperationInvoker;
 import org.springframework.boot.actuate.endpoint.invoker.cache.CachingOperationInvokerAdvisor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -34,6 +33,9 @@ import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.convert.converter.GenericConverter;
 import org.springframework.core.env.Environment;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for {@link Endpoint @Endpoint}
@@ -47,32 +49,46 @@ import org.springframework.core.env.Environment;
 @AutoConfiguration
 public class EndpointAutoConfiguration {
 
-	@Bean
-	@ConditionalOnMissingBean
-	public ParameterValueMapper endpointOperationParameterMapper(
-			@EndpointConverter ObjectProvider<Converter<?, ?>> converters,
-			@EndpointConverter ObjectProvider<GenericConverter> genericConverters) {
-		ConversionService conversionService = createConversionService(
-				converters.orderedStream().collect(Collectors.toList()),
-				genericConverters.orderedStream().collect(Collectors.toList()));
-		return new ConversionServiceParameterValueMapper(conversionService);
-	}
+    @Bean
+    @ConditionalOnMissingBean
+    public ParameterValueMapper endpointOperationParameterMapper(
+            @EndpointConverter ObjectProvider<Converter<?, ?>> converters,
+            @EndpointConverter ObjectProvider<GenericConverter> genericConverters) {
+        ConversionService conversionService = createConversionService(
+                converters.orderedStream()
+                        .collect(Collectors.toList()), genericConverters.orderedStream()
+                        .collect(Collectors.toList()));
+        /**
+         * 用来转换参数值的，在反射调用 @ReadOperation、@WriteOperation、@DeleteOperation 标注的方法的构造方法参数时
+         * 会使用这个来映射参数的值，生成参数列表
+         *
+         * {@link ReflectiveOperationInvoker#invoke(InvocationContext)}
+         * */
+        return new ConversionServiceParameterValueMapper(conversionService);
+    }
 
-	private ConversionService createConversionService(List<Converter<?, ?>> converters,
-			List<GenericConverter> genericConverters) {
-		if (genericConverters.isEmpty() && converters.isEmpty()) {
-			return ApplicationConversionService.getSharedInstance();
-		}
-		ApplicationConversionService conversionService = new ApplicationConversionService();
-		converters.forEach(conversionService::addConverter);
-		genericConverters.forEach(conversionService::addConverter);
-		return conversionService;
-	}
+    private ConversionService createConversionService(List<Converter<?, ?>> converters,
+                                                      List<GenericConverter> genericConverters) {
+        if (genericConverters.isEmpty() && converters.isEmpty()) {
+            return ApplicationConversionService.getSharedInstance();
+        }
+        ApplicationConversionService conversionService = new ApplicationConversionService();
+        converters.forEach(conversionService::addConverter);
+        genericConverters.forEach(conversionService::addConverter);
+        return conversionService;
+    }
 
-	@Bean
-	@ConditionalOnMissingBean
-	public CachingOperationInvokerAdvisor endpointCachingOperationInvokerAdvisor(Environment environment) {
-		return new CachingOperationInvokerAdvisor(new EndpointIdTimeToLivePropertyFunction(environment));
-	}
+    @Bean
+    @ConditionalOnMissingBean
+    public CachingOperationInvokerAdvisor endpointCachingOperationInvokerAdvisor(Environment environment) {
+        /**
+         * @ReadOperation、@WriteOperation、@DeleteOperation 的方法执行是 {@link ReflectiveOperationInvoker#invoke(InvocationContext)}
+         * CachingOperationInvokerAdvisor 是用来对 ReflectiveOperationInvoker 进行装饰的，目的就是拦截方法的执行
+         * 存在缓存就返回缓存结果。
+         *
+         * 注：可以通过 management.endpoint.`endpointId.toLowerCaseString()`.cache.time-to-live 设置缓存的时间
+         * */
+        return new CachingOperationInvokerAdvisor(new EndpointIdTimeToLivePropertyFunction(environment));
+    }
 
 }

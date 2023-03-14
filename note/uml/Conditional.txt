@@ -1,0 +1,91 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+interface AutoConfigurationImportFilter << interface >> {
+  + match(String[], AutoConfigurationMetadata): boolean[]
+}
+interface Condition << interface >> {
+  + matches(ConditionContext, AnnotatedTypeMetadata): boolean
+}
+class FilteringSpringBootCondition {
+  - beanFactory: BeanFactory
+  - beanClassLoader: ClassLoader
+  # getBeanClassLoader(): ClassLoader
+  + match(String[], AutoConfigurationMetadata): boolean[]
+  + setBeanClassLoader(ClassLoader): void
+  # resolve(String, ClassLoader): Class<?>
+  # getOutcomes(String[], AutoConfigurationMetadata): ConditionOutcome[]
+  # getBeanFactory(): BeanFactory
+  # filter(Collection<String>, ClassNameFilter, ClassLoader): List<String>
+  + setBeanFactory(BeanFactory): void
+}
+annotation FunctionalInterface << annotation >>
+class OnBeanCondition {
+  - getOutcome(Set<String>, Class<Annotation>): ConditionOutcome?
+  + getConfigurationPhase(): ConfigurationPhase
+  + getMatchOutcome(ConditionContext, AnnotatedTypeMetadata): ConditionOutcome
+  - getPrimaryBeans(ConfigurableListableBeanFactory, Set<String>, boolean): List<String>
+  - getNamesOfBeansIgnoredByType(ClassLoader, ListableBeanFactory, boolean, Set<String>, Set<Class<?>>): Set<String>
+  - createOnMissingBeanNoMatchReason(MatchResult): String
+  - appendMessageForMatches(StringBuilder, Map<String, Collection<String>>, String): void
+  # getMatchingBeans(ConditionContext, Spec<?>): MatchResult
+  - collectBeanNamesForAnnotation(ListableBeanFactory, Class<Annotation>, boolean, Set<String>): Set<String>
+  - containsBean(ConfigurableListableBeanFactory, String, boolean): boolean
+  - getBeanNamesForType(ListableBeanFactory, boolean, Class<?>, Set<Class<?>>): Set<String>
+  - addAll(Set<String>, Collection<String>): Set<String>
+  - getBeanNamesForAnnotation(ClassLoader, ConfigurableListableBeanFactory, String, boolean): Set<String>
+  - addAll(Set<String>, String[]): Set<String>
+  - getBeanNamesForType(ClassLoader, boolean, ListableBeanFactory, String, Set<Class<?>>): Set<String>
+  - collectBeanNamesForType(ListableBeanFactory, boolean, Class<?>, Set<Class<?>>, Set<String>): Set<String>
+  # getOutcomes(String[], AutoConfigurationMetadata): ConditionOutcome[]
+  - resolveAnnotationType(ClassLoader, String): Class<Annotation>
+  - createOnBeanNoMatchReason(MatchResult): String
+  - appendMessageForNoMatches(StringBuilder, Collection<String>, String): void
+  - findBeanDefinition(ConfigurableListableBeanFactory, String, boolean): BeanDefinition?
+}
+class OnClassCondition {
+  - resolveOutcomesThreaded(String[], AutoConfigurationMetadata): ConditionOutcome[]
+  + getMatchOutcome(ConditionContext, AnnotatedTypeMetadata): ConditionOutcome
+  - createOutcomesResolver(String[], int, int, AutoConfigurationMetadata): OutcomesResolver
+  # getOutcomes(String[], AutoConfigurationMetadata): ConditionOutcome[]
+  - addAll(List<String>, List<Object>): void
+  - getCandidates(AnnotatedTypeMetadata, Class<?>): List<String>?
+}
+class OnWebApplicationCondition {
+  - SERVLET_WEB_APPLICATION_CLASS: String
+  - REACTIVE_WEB_APPLICATION_CLASS: String
+  - isServletWebApplication(ConditionContext): ConditionOutcome
+  - isWebApplication(ConditionContext, AnnotatedTypeMetadata, boolean): ConditionOutcome
+  - isAnyWebApplication(ConditionContext, boolean): ConditionOutcome
+  - deduceType(AnnotatedTypeMetadata): Type
+  + getMatchOutcome(ConditionContext, AnnotatedTypeMetadata): ConditionOutcome
+  - isReactiveWebApplication(ConditionContext): ConditionOutcome
+  # getOutcomes(String[], AutoConfigurationMetadata): ConditionOutcome[]
+  - getOutcome(String): ConditionOutcome
+}
+class SpringBootCondition {
+  - logger: Log
+  - recordEvaluation(ConditionContext, String, ConditionOutcome): void
+  - getName(AnnotatedTypeMetadata): String
+  - getLogMessage(String, ConditionOutcome): StringBuilder
+  # matches(ConditionContext, AnnotatedTypeMetadata, Condition): boolean
+  # logOutcome(String, ConditionOutcome): void
+  # anyMatches(ConditionContext, AnnotatedTypeMetadata, Condition[]): boolean
+  + getMatchOutcome(ConditionContext, AnnotatedTypeMetadata): ConditionOutcome
+  + matches(ConditionContext, AnnotatedTypeMetadata): boolean
+  - getClassOrMethodName(AnnotatedTypeMetadata): String
+}
+
+AutoConfigurationImportFilter  -[#999900,dotted]-  FunctionalInterface
+Condition                      -[#999900,dotted]-  FunctionalInterface
+FilteringSpringBootCondition   -[#008200,dashed]-^  AutoConfigurationImportFilter
+FilteringSpringBootCondition   -[#000082,plain]-^  SpringBootCondition
+OnBeanCondition                -[#008200,dashed]-^  Condition
+OnBeanCondition                -[#000082,plain]-^  FilteringSpringBootCondition
+OnClassCondition               -[#000082,plain]-^  FilteringSpringBootCondition
+OnWebApplicationCondition      -[#000082,plain]-^  FilteringSpringBootCondition
+SpringBootCondition            -[#008200,dashed]-^  Condition
+@enduml

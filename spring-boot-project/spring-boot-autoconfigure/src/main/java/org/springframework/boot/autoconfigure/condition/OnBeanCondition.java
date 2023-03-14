@@ -16,21 +16,6 @@
 
 package org.springframework.boot.autoconfigure.condition;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
 import org.springframework.aop.scope.ScopedProxyUtils;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.HierarchicalBeanFactory;
@@ -45,21 +30,15 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.ConfigurationCondition;
 import org.springframework.core.Ordered;
 import org.springframework.core.ResolvableType;
-import org.springframework.core.annotation.MergedAnnotation;
+import org.springframework.core.annotation.*;
 import org.springframework.core.annotation.MergedAnnotation.Adapt;
-import org.springframework.core.annotation.MergedAnnotationCollectors;
-import org.springframework.core.annotation.MergedAnnotationPredicates;
-import org.springframework.core.annotation.MergedAnnotations;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.core.type.MethodMetadata;
-import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.MultiValueMap;
-import org.springframework.util.ObjectUtils;
-import org.springframework.util.ReflectionUtils;
-import org.springframework.util.StringUtils;
+import org.springframework.util.*;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.*;
 
 /**
  * {@link Condition} that checks for the presence or absence of specific beans.
@@ -120,7 +99,10 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
         MergedAnnotations annotations = metadata.getAnnotations();
         if (annotations.isPresent(ConditionalOnBean.class)) {
             Spec<ConditionalOnBean> spec = new Spec<>(context, metadata, annotations, ConditionalOnBean.class);
-            // 主要是从三个维度进行匹配：类型、注解、name
+            /**
+             * 主要是从三个维度进行匹配
+             * BeanFactory注册的bean，存在 bean的类型 或者 bean上有注解 或者 bean的name 一致，才是匹配
+             * */
             MatchResult matchResult = getMatchingBeans(context, spec);
             // 都没有匹配
             if (!matchResult.isAllMatched()) {
@@ -141,6 +123,7 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
             Set<String> allBeans = matchResult.getNamesOfAllMatches();
             // 只匹配了一个，那就是匹配
             if (allBeans.size() == 1) {
+                // 就算是匹配，方法的最后会直接 return
                 matchMessage = spec.message(matchMessage).found("a single bean").items(Style.QUOTE, allBeans);
             } else {
                 // 存在多个匹配的结果，看看是否只有一个标注了 @Primary
@@ -164,7 +147,9 @@ class OnBeanCondition extends FilteringSpringBootCondition implements Configurat
         if (metadata.isAnnotated(ConditionalOnMissingBean.class.getName())) {
             Spec<ConditionalOnMissingBean> spec = new Spec<>(context, metadata, annotations,
                     ConditionalOnMissingBean.class);
+            // 拿到匹配的结果，包含三个内容：类型匹配的、注解匹配的、name匹配的
             MatchResult matchResult = getMatchingBeans(context, spec);
+            // 存在匹配，那就是不匹配
             if (matchResult.isAnyMatched()) {
                 String reason = createOnMissingBeanNoMatchReason(matchResult);
                 return ConditionOutcome.noMatch(spec.message().because(reason));

@@ -62,6 +62,15 @@ class ImportAutoConfigurationImportSelector extends AutoConfigurationImportSelec
 	public Set<Object> determineImports(AnnotationMetadata metadata) {
 		List<String> candidateConfigurations = getCandidateConfigurations(metadata, null);
 		Set<String> result = new LinkedHashSet<>(candidateConfigurations);
+		/**
+		 * 获取需要排除的类
+		 * {@link ImportAutoConfigurationImportSelector#getExclusions(AnnotationMetadata, AnnotationAttributes)}
+		 *
+		 * 排除的类可以通过下面三种方式配置：
+		 * 	1. @ImportAutoConfiguration(exclude={A.class})
+		 * 	2. @Xxx(exclude={"cn.A"})
+		 * 	3. 属性 spring.autoconfigure.exclude 的值
+		 * */
 		result.removeAll(getExclusions(metadata, null));
 		return Collections.unmodifiableSet(result);
 	}
@@ -106,6 +115,7 @@ class ImportAutoConfigurationImportSelector extends AutoConfigurationImportSelec
 	protected Set<String> getExclusions(AnnotationMetadata metadata, AnnotationAttributes attributes) {
 		Set<String> exclusions = new LinkedHashSet<>();
 		Class<?> source = ClassUtils.resolveClassName(metadata.getClassName(), getBeanClassLoader());
+		// 从元数据中获取 @ImportAutoConfiguration 的值
 		for (String annotationName : ANNOTATION_NAMES) {
 			AnnotationAttributes merged = AnnotatedElementUtils.getMergedAnnotationAttributes(source, annotationName);
 			Class<?>[] exclude = (merged != null) ? merged.getClassArray("exclude") : null;
@@ -116,6 +126,7 @@ class ImportAutoConfigurationImportSelector extends AutoConfigurationImportSelec
 			}
 		}
 		for (List<Annotation> annotations : getAnnotations(metadata).values()) {
+			// 任意注解的 exclude 的值也可用来排除
 			for (Annotation annotation : annotations) {
 				String[] exclude = (String[]) AnnotationUtils.getAnnotationAttributes(annotation, true).get("exclude");
 				if (!ObjectUtils.isEmpty(exclude)) {
@@ -123,6 +134,7 @@ class ImportAutoConfigurationImportSelector extends AutoConfigurationImportSelec
 				}
 			}
 		}
+		// 从 Environment 中获取 spring.autoconfigure.exclude 的值作为要排除的
 		exclusions.addAll(getExcludeAutoConfigurationsProperty());
 		return exclusions;
 	}

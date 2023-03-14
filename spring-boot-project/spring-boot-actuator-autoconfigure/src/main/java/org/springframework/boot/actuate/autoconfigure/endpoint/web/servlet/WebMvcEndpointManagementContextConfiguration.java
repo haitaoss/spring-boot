@@ -16,10 +16,6 @@
 
 package org.springframework.boot.actuate.autoconfigure.endpoint.web.servlet;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
 import org.springframework.boot.actuate.autoconfigure.endpoint.condition.ConditionalOnAvailableEndpoint;
 import org.springframework.boot.actuate.autoconfigure.endpoint.expose.EndpointExposure;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.CorsEndpointProperties;
@@ -29,14 +25,10 @@ import org.springframework.boot.actuate.autoconfigure.web.server.ConditionalOnMa
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
 import org.springframework.boot.actuate.endpoint.ExposableEndpoint;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
-import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
-import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
-import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
-import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
+import org.springframework.boot.actuate.endpoint.web.*;
 import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier;
 import org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointsSupplier;
+import org.springframework.boot.actuate.endpoint.web.servlet.AbstractWebMvcEndpointHandlerMapping;
 import org.springframework.boot.actuate.endpoint.web.servlet.AdditionalHealthEndpointPathsWebMvcHandlerMapping;
 import org.springframework.boot.actuate.endpoint.web.servlet.ControllerEndpointHandlerMapping;
 import org.springframework.boot.actuate.endpoint.web.servlet.WebMvcEndpointHandlerMapping;
@@ -53,6 +45,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.DispatcherServlet;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * {@link ManagementContextConfiguration @ManagementContextConfiguration} for Spring MVC
@@ -76,13 +72,34 @@ public class WebMvcEndpointManagementContextConfiguration {
 			EndpointMediaTypes endpointMediaTypes, CorsEndpointProperties corsProperties,
 			WebEndpointProperties webEndpointProperties, Environment environment) {
 		List<ExposableEndpoint<?>> allEndpoints = new ArrayList<>();
+		/**
+		 * 从容器中找到 @Endpoint 的bean，并且会解析bean里面的 @ReadOperation 、@WriteOperation 、@DeleteOperation 方法
+		 * */
 		Collection<ExposableWebEndpoint> webEndpoints = webEndpointsSupplier.getEndpoints();
 		allEndpoints.addAll(webEndpoints);
+		/**
+		 * 从容器中找到 @ServletEndpoint 的bean
+		 * */
 		allEndpoints.addAll(servletEndpointsSupplier.getEndpoints());
+		/**
+		 * 从容器中找到 @ControllerEndpoint @RestControllerEndpoint 的bean
+		 * */
 		allEndpoints.addAll(controllerEndpointsSupplier.getEndpoints());
+		// 可以通过 management.endpoints.web.basePath 设置值，默认是 /actuator
 		String basePath = webEndpointProperties.getBasePath();
+		// endpointMapping 是用来统一前缀的，构造 映射路径时会使用 basePath 拼接而成
 		EndpointMapping endpointMapping = new EndpointMapping(basePath);
+		// 可以通过 management.endpoints.web.discovery.enabled 设置值，默认是 true
 		boolean shouldRegisterLinksMapping = shouldRegisterLinksMapping(webEndpointProperties, environment, basePath);
+		/**
+		 * {@link AbstractWebMvcEndpointHandlerMapping#initHandlerMethods()}
+		 * 		只会处理有 @Endpoint 的bean，并会解析bean里面的 @ReadOperation 、@WriteOperation 、@DeleteOperation 方法
+		 * 		注册到 {@link AbstractHandlerMethodMapping#mappingRegistry}
+		 *
+		 * 	至于 controllerEndpointsSupplier 的真正处理看 {@link WebMvcEndpointManagementContextConfiguration#controllerEndpointHandlerMapping(ControllerEndpointsSupplier, CorsEndpointProperties, WebEndpointProperties)}
+		 *
+		 * 	多传入 servletEndpointsSupplier、controllerEndpointsSupplier 是为了记录这些端点的信息，然后可以访问 /actuator 查看到
+		 * */
 		return new WebMvcEndpointHandlerMapping(endpointMapping, webEndpoints, endpointMediaTypes,
 				corsProperties.toCorsConfiguration(), new EndpointLinksResolver(allEndpoints, basePath),
 				shouldRegisterLinksMapping, WebMvcAutoConfiguration.pathPatternParser);
@@ -101,8 +118,13 @@ public class WebMvcEndpointManagementContextConfiguration {
 	public AdditionalHealthEndpointPathsWebMvcHandlerMapping managementHealthEndpointWebMvcHandlerMapping(
 			WebEndpointsSupplier webEndpointsSupplier, HealthEndpointGroups groups) {
 		Collection<ExposableWebEndpoint> webEndpoints = webEndpointsSupplier.getEndpoints();
+		// 过滤出是 health 端点
 		ExposableWebEndpoint health = webEndpoints.stream()
 				.filter((endpoint) -> endpoint.getEndpointId().equals(HealthEndpoint.ID)).findFirst().get();
+		/**
+		 *  若 group 设置了 additionalPath，那就注册映射关系
+		 * 	比如设置了属性：management.endpoint.health.group.custom.additionalPath=server:/health-custom
+		 * */
 		return new AdditionalHealthEndpointPathsWebMvcHandlerMapping(health,
 				groups.getAllWithAdditionalPath(WebServerNamespace.MANAGEMENT));
 	}
@@ -113,6 +135,11 @@ public class WebMvcEndpointManagementContextConfiguration {
 			ControllerEndpointsSupplier controllerEndpointsSupplier, CorsEndpointProperties corsProperties,
 			WebEndpointProperties webEndpointProperties) {
 		EndpointMapping endpointMapping = new EndpointMapping(webEndpointProperties.getBasePath());
+		/**
+		 * controllerEndpointsSupplier 是 从容器中找到 @ControllerEndpoint @RestControllerEndpoint 的bean
+		 *
+		 * ControllerEndpointHandlerMapping 的作用是 找到bean中的 @RequestMapping 然后注册映射关系
+		 * */
 		return new ControllerEndpointHandlerMapping(endpointMapping, controllerEndpointsSupplier.getEndpoints(),
 				corsProperties.toCorsConfiguration());
 	}

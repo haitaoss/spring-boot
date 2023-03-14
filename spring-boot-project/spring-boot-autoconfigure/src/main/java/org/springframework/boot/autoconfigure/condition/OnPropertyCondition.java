@@ -48,6 +48,7 @@ class OnPropertyCondition extends SpringBootCondition {
 
 	@Override
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
+		// 拿到这个注解的信息 @ConditionalOnProperty
 		List<AnnotationAttributes> allAnnotationAttributes = metadata.getAnnotations()
 				.stream(ConditionalOnProperty.class.getName())
 				.filter(MergedAnnotationPredicates.unique(MergedAnnotation::getMetaTypes))
@@ -55,9 +56,12 @@ class OnPropertyCondition extends SpringBootCondition {
 		List<ConditionMessage> noMatch = new ArrayList<>();
 		List<ConditionMessage> match = new ArrayList<>();
 		for (AnnotationAttributes annotationAttributes : allAnnotationAttributes) {
+			//
 			ConditionOutcome outcome = determineOutcome(annotationAttributes, context.getEnvironment());
+			// 按照结果进行分类记录
 			(outcome.isMatch() ? match : noMatch).add(outcome.getConditionMessage());
 		}
+		// 不匹配不是空,说明不匹配
 		if (!noMatch.isEmpty()) {
 			return ConditionOutcome.noMatch(ConditionMessage.of(noMatch));
 		}
@@ -66,8 +70,11 @@ class OnPropertyCondition extends SpringBootCondition {
 
 	private ConditionOutcome determineOutcome(AnnotationAttributes annotationAttributes, PropertyResolver resolver) {
 		Spec spec = new Spec(annotationAttributes);
+		// 记录 不存在值 的属性
 		List<String> missingProperties = new ArrayList<>();
+		// 记录 值存在,但是值以预期不一致的
 		List<String> nonMatchingProperties = new ArrayList<>();
+		// 收集结果
 		spec.collectProperties(resolver, missingProperties, nonMatchingProperties);
 		if (!missingProperties.isEmpty()) {
 			return ConditionOutcome.noMatch(ConditionMessage.forCondition(ConditionalOnProperty.class, spec)
@@ -116,12 +123,15 @@ class OnPropertyCondition extends SpringBootCondition {
 		private void collectProperties(PropertyResolver resolver, List<String> missing, List<String> nonMatching) {
 			for (String name : this.names) {
 				String key = this.prefix + name;
+				// 包含这个属性
 				if (resolver.containsProperty(key)) {
+					// 获取的属性值 和 预期的不一致
 					if (!isMatch(resolver.getProperty(key), this.havingValue)) {
 						nonMatching.add(name);
 					}
 				}
 				else {
+					// 记录不存在属性值的情况
 					if (!this.matchIfMissing) {
 						missing.add(name);
 					}

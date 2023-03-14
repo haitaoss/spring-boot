@@ -1,0 +1,79 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+class AbstractDiscoveredEndpoint<O> {
+  - endpointBean: Object
+  - discoverer: EndpointDiscoverer<?, ?>
+  + wasDiscoveredBy(Class<EndpointDiscoverer<?, ?>>): boolean
+  + toString(): String
+  # appendFields(ToStringCreator): void
+  + getEndpointBean(): Object
+}
+class AbstractExposableEndpoint<O> {
+  - enabledByDefault: boolean
+  - id: EndpointId
+  - operations: List<O>
+  + getEndpointId(): EndpointId
+  + getOperations(): Collection<O>
+  + isEnableByDefault(): boolean
+}
+class DiscoveredControllerEndpoint {
+  - rootPath: String
+  + getController(): Object
+  + getRootPath(): String
+}
+interface DiscoveredEndpoint<O> << interface >> {
+  + wasDiscoveredBy(Class<EndpointDiscoverer<?, ?>>): boolean
+  + getEndpointBean(): Object
+}
+class DiscoveredJmxEndpoint
+class DiscoveredServletEndpoint {
+  - rootPath: String
+  - endpointServlet: EndpointServlet
+  + getRootPath(): String
+  + getEndpointServlet(): EndpointServlet
+}
+class DiscoveredWebEndpoint {
+  - rootPath: String
+  + getRootPath(): String
+}
+interface ExposableEndpoint<O> << interface >> {
+  + isEnableByDefault(): boolean
+  + getEndpointId(): EndpointId
+  + getOperations(): Collection<O>
+}
+interface ExposableWebEndpoint << interface >>
+annotation FunctionalInterface << annotation >>
+interface Operation << interface >> {
+  + getType(): OperationType
+  + invoke(InvocationContext): Object
+}
+interface PathMappedEndpoint << interface >> {
+  + getRootPath(): String
+}
+
+AbstractDiscoveredEndpoint    -[#000082,plain]-^  AbstractExposableEndpoint
+AbstractDiscoveredEndpoint    -[#008200,dashed]-^  DiscoveredEndpoint
+AbstractDiscoveredEndpoint    -[#595959,dashed]->  Operation
+AbstractExposableEndpoint     -[#008200,dashed]-^  ExposableEndpoint
+AbstractExposableEndpoint     -[#595959,dashed]->  Operation
+DiscoveredControllerEndpoint  -[#000082,plain]-^  AbstractDiscoveredEndpoint
+DiscoveredControllerEndpoint  -[#008200,dashed]-^  ExposableEndpoint
+DiscoveredControllerEndpoint  -[#008200,dashed]-^  PathMappedEndpoint
+DiscoveredEndpoint            -[#008200,plain]-^  ExposableEndpoint
+DiscoveredEndpoint            -[#595959,dashed]->  Operation
+DiscoveredJmxEndpoint         -[#000082,plain]-^  AbstractDiscoveredEndpoint
+DiscoveredJmxEndpoint         -[#008200,dashed]-^  ExposableEndpoint
+DiscoveredServletEndpoint     -[#000082,plain]-^  AbstractDiscoveredEndpoint
+DiscoveredServletEndpoint     -[#008200,dashed]-^  ExposableEndpoint
+DiscoveredServletEndpoint     -[#008200,dashed]-^  PathMappedEndpoint
+DiscoveredWebEndpoint         -[#000082,plain]-^  AbstractDiscoveredEndpoint
+DiscoveredWebEndpoint         -[#008200,dashed]-^  ExposableWebEndpoint
+ExposableEndpoint             -[#595959,dashed]->  Operation
+ExposableWebEndpoint          -[#008200,plain]-^  ExposableEndpoint
+ExposableWebEndpoint          -[#008200,plain]-^  PathMappedEndpoint
+PathMappedEndpoint            -[#999900,dotted]-  FunctionalInterface
+@enduml

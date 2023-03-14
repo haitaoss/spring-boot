@@ -30,9 +30,11 @@ import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.BeanFactoryAnnotationUtils;
+import org.springframework.boot.actuate.autoconfigure.endpoint.web.servlet.WebMvcEndpointManagementContextConfiguration;
 import org.springframework.boot.actuate.autoconfigure.health.HealthEndpointProperties.Group;
 import org.springframework.boot.actuate.autoconfigure.health.HealthProperties.Show;
 import org.springframework.boot.actuate.autoconfigure.health.HealthProperties.Status;
+import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
 import org.springframework.boot.actuate.health.AdditionalHealthEndpointPath;
 import org.springframework.boot.actuate.health.HealthEndpointGroup;
 import org.springframework.boot.actuate.health.HealthEndpointGroups;
@@ -108,8 +110,14 @@ class AutoConfiguredHealthEndpointGroups implements HealthEndpointGroups {
 						return defaultHttpCodeStatusMapper;
 					});
 			Predicate<String> members = new IncludeExcludeGroupMemberPredicate(group.getInclude(), group.getExclude());
+			/**
+			 * additionalPath
+			 *
+			 * {@link WebMvcEndpointManagementContextConfiguration#managementHealthEndpointWebMvcHandlerMapping(WebEndpointsSupplier, HealthEndpointGroups)}
+			 * */
 			AdditionalHealthEndpointPath additionalPath = (group.getAdditionalPath() != null)
 					? AdditionalHealthEndpointPath.from(group.getAdditionalPath()) : null;
+			// 构造出
 			groups.put(groupName, new AutoConfiguredHealthEndpointGroup(members, statusAggregator, httpCodeStatusMapper,
 					showComponents, showDetails, roles, additionalPath));
 		});

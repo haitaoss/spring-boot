@@ -16,10 +16,6 @@
 
 package org.springframework.boot.actuate.endpoint.invoke.reflect;
 
-import java.lang.reflect.Method;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.springframework.boot.actuate.endpoint.InvocationContext;
 import org.springframework.boot.actuate.endpoint.invoke.MissingParametersException;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
@@ -28,6 +24,10 @@ import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
 import org.springframework.core.style.ToStringCreator;
 import org.springframework.util.Assert;
 import org.springframework.util.ReflectionUtils;
+
+import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An {@code OperationInvoker} that invokes an operation using reflection.
@@ -67,10 +67,13 @@ public class ReflectiveOperationInvoker implements OperationInvoker {
 
 	@Override
 	public Object invoke(InvocationContext context) {
+		// 校验 context 是否能构造出方法的参数列表
 		validateRequiredParameters(context);
 		Method method = this.operationMethod.getMethod();
+		// 生成方法的参数列表
 		Object[] resolvedArguments = resolveArguments(context);
 		ReflectionUtils.makeAccessible(method);
+		// 反射执行犯法
 		return ReflectionUtils.invokeMethod(method, this.target, resolvedArguments);
 	}
 

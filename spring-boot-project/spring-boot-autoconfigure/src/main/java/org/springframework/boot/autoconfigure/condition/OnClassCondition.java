@@ -91,8 +91,11 @@ class OnClassCondition extends FilteringSpringBootCondition {
 		ClassLoader classLoader = context.getClassLoader();
 		ConditionMessage matchMessage = ConditionMessage.empty();
 		List<String> onClasses = getCandidates(metadata, ConditionalOnClass.class);
+		// 存在 @ConditionalOnClass 注解，才进行这个注解的校验
 		if (onClasses != null) {
+			// classLoader 中没有 onClasses 才是true，会在匹配的结果收集到集合然后返回
 			List<String> missing = filter(onClasses, ClassNameFilter.MISSING, classLoader);
+			// 不是空，说明存在匹配的结果，但是 @ConditionalOnClass 的目的是校验存在类才行，所以这里返回不匹配
 			if (!missing.isEmpty()) {
 				return ConditionOutcome.noMatch(ConditionMessage.forCondition(ConditionalOnClass.class)
 						.didNotFind("required class", "required classes").items(Style.QUOTE, missing));
@@ -112,6 +115,7 @@ class OnClassCondition extends FilteringSpringBootCondition {
 					.didNotFind("unwanted class", "unwanted classes")
 					.items(Style.QUOTE, filter(onMissingClasses, ClassNameFilter.MISSING, classLoader));
 		}
+		// 没有注解，那就不需要判断，就算是匹配
 		return ConditionOutcome.match(matchMessage);
 	}
 

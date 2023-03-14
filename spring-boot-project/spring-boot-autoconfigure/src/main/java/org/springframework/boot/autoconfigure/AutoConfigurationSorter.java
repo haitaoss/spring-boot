@@ -56,8 +56,10 @@ class AutoConfigurationSorter {
 		AutoConfigurationClasses classes = new AutoConfigurationClasses(this.metadataReaderFactory,
 				this.autoConfigurationMetadata, classNames);
 		List<String> orderedClassNames = new ArrayList<>(classNames);
+		// 先按照字母排序
 		// Initially sort alphabetically
 		Collections.sort(orderedClassNames);
+		// 在按照 Order 排序
 		// Then sort by order
 		orderedClassNames.sort((o1, o2) -> {
 			int i1 = classes.get(o1).getOrder();
@@ -66,6 +68,7 @@ class AutoConfigurationSorter {
 		});
 		// Then respect @AutoConfigureBefore @AutoConfigureAfter
 		orderedClassNames = sortByAnnotation(classes, orderedClassNames);
+		// 返回排序后的结果
 		return orderedClassNames;
 	}
 

@@ -1,0 +1,98 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+class CloudFoundryWebEndpointDiscoverer {
+  - isCloudFoundryHealthEndpointExtension(Class<?>): boolean
+  - isHealthEndpointExtension(Class<?>): boolean
+  # isExtensionTypeExposed(Class<?>): boolean
+}
+class ControllerEndpointDiscoverer {
+  # createOperationKey(Operation): OperationKey
+  # createOperation(EndpointId, DiscoveredOperationMethod, OperationInvoker): Operation
+  # isEndpointTypeExposed(Class<?>): boolean
+  # createEndpoint(Object, EndpointId, boolean, Collection<Operation>): ExposableControllerEndpoint
+}
+interface ControllerEndpointsSupplier << interface >>
+class EndpointDiscoverer<E, O> {
+  - endpoints: Collection<E>
+  - addExtensionBeans(Collection<EndpointBean>): void
+  # isExtensionTypeExposed(Class<?>): boolean
+  - createEndpointBean(String): EndpointBean
+  - getFilterEndpoint(EndpointBean): E
+  # isEndpointTypeExposed(Class<?>): boolean
+  - addOperations(MultiValueMap<OperationKey, O>, EndpointId, Object, boolean): void
+  - convertToEndpoints(Collection<EndpointBean>): Collection<E>
+  - getOperationsFactory(ParameterValueMapper, Collection<OperationInvokerAdvisor>): DiscoveredOperationsFactory<O>
+  # createEndpoint(Object, EndpointId, boolean, Collection<O>): E
+  - createExtensionBean(String): ExtensionBean
+  - isFilterMatch(EndpointFilter<E>, EndpointBean): boolean
+  - isExtensionExposed(EndpointBean, ExtensionBean): boolean
+  - getLast(List<T>): T?
+  # createOperationKey(O): OperationKey
+  - convertToEndpoint(EndpointBean): E
+  - isFilterMatch(EndpointFilter<E>, E): boolean
+  - isFilterMatch(Class<?>, EndpointBean): boolean
+  - isEndpointExposed(EndpointBean): boolean
+  - discoverEndpoints(): Collection<E>
+  - assertNoDuplicateOperations(EndpointBean, MultiValueMap<OperationKey, O>): void
+  - addExtensionBean(EndpointBean, ExtensionBean): void
+  - isEndpointFiltered(EndpointBean): boolean
+  # createOperation(EndpointId, DiscoveredOperationMethod, OperationInvoker): O
+  - createEndpointBeans(): Collection<EndpointBean>
+   endpoints: Collection<E>
+   endpointType: Class<E>
+}
+interface EndpointsSupplier<E> << interface >> {
+   endpoints: Collection<E>
+}
+interface ExposableEndpoint<O> << interface >> {
+   operations: Collection<O>
+   endpointId: EndpointId
+   enableByDefault: boolean
+}
+annotation FunctionalInterface << annotation >>
+class JmxEndpointDiscoverer {
+  # createEndpoint(Object, EndpointId, boolean, Collection<JmxOperation>): ExposableJmxEndpoint
+  # createOperation(EndpointId, DiscoveredOperationMethod, OperationInvoker): JmxOperation
+  # createOperationKey(JmxOperation): OperationKey
+}
+interface JmxEndpointsSupplier << interface >>
+class ServletEndpointDiscoverer {
+  # createEndpoint(Object, EndpointId, boolean, Collection<Operation>): ExposableServletEndpoint
+  # isEndpointTypeExposed(Class<?>): boolean
+  # createOperation(EndpointId, DiscoveredOperationMethod, OperationInvoker): Operation
+  # createOperationKey(Operation): OperationKey
+}
+interface ServletEndpointsSupplier << interface >>
+class WebEndpointDiscoverer {
+  # createOperation(EndpointId, DiscoveredOperationMethod, OperationInvoker): WebOperation
+  # createOperationKey(WebOperation): OperationKey
+  # createEndpoint(Object, EndpointId, boolean, Collection<WebOperation>): ExposableWebEndpoint
+}
+interface WebEndpointsSupplier << interface >>
+
+CloudFoundryWebEndpointDiscoverer  -[#000082,plain]-^  WebEndpointDiscoverer
+ControllerEndpointDiscoverer       -[#008200,dashed]-^  ControllerEndpointsSupplier
+ControllerEndpointDiscoverer       -[#000082,plain]-^  EndpointDiscoverer
+ControllerEndpointsSupplier        -[#008200,plain]-^  EndpointsSupplier
+ControllerEndpointsSupplier        -[#999900,dotted]-  FunctionalInterface
+EndpointDiscoverer                 -[#008200,dashed]-^  EndpointsSupplier
+EndpointDiscoverer                 -[#595959,dashed]->  ExposableEndpoint
+EndpointsSupplier                  -[#595959,dashed]->  ExposableEndpoint
+EndpointsSupplier                  -[#999900,dotted]-  FunctionalInterface
+JmxEndpointDiscoverer              -[#000082,plain]-^  EndpointDiscoverer
+JmxEndpointDiscoverer              -[#008200,dashed]-^  JmxEndpointsSupplier
+JmxEndpointsSupplier               -[#008200,plain]-^  EndpointsSupplier
+JmxEndpointsSupplier               -[#999900,dotted]-  FunctionalInterface
+ServletEndpointDiscoverer          -[#000082,plain]-^  EndpointDiscoverer
+ServletEndpointDiscoverer          -[#008200,dashed]-^  ServletEndpointsSupplier
+ServletEndpointsSupplier           -[#008200,plain]-^  EndpointsSupplier
+ServletEndpointsSupplier           -[#999900,dotted]-  FunctionalInterface
+WebEndpointDiscoverer              -[#000082,plain]-^  EndpointDiscoverer
+WebEndpointDiscoverer              -[#008200,dashed]-^  WebEndpointsSupplier
+WebEndpointsSupplier               -[#008200,plain]-^  EndpointsSupplier
+WebEndpointsSupplier               -[#999900,dotted]-  FunctionalInterface
+@enduml

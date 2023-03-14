@@ -41,6 +41,7 @@ import org.springframework.boot.actuate.endpoint.Operation;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvokerAdvisor;
 import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
+import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointDiscoverer;
 import org.springframework.boot.util.LambdaSafe;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.ResolvableType;
@@ -120,23 +121,38 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 	}
 
 	private Collection<E> discoverEndpoints() {
+		// 找到标注了 @Endpoint 的bean 映射成 EndpointBean 返回
 		Collection<EndpointBean> endpointBeans = createEndpointBeans();
+		/**
+		 * 找到标注了 @EndpointExtension 的bean 映射成 ExtensionBean
+		 * 然后执行配置的Filter 满足了 Filter 才将 extensionBean 关联给 EndpointBean
+		 * 		@EndpointExtension(filter=A.class)
+		 * */
 		addExtensionBeans(endpointBeans);
+		// 会解析 @Endpoint 中的 @ReadOperation 、@WriteOperation 、@DeleteOperation
 		return convertToEndpoints(endpointBeans);
 	}
 
 	private Collection<EndpointBean> createEndpointBeans() {
 		Map<EndpointId, EndpointBean> byId = new LinkedHashMap<>();
+		// 找到有 @Endpoint 的bean
 		String[] beanNames = BeanFactoryUtils.beanNamesForAnnotationIncludingAncestors(this.applicationContext,
 				Endpoint.class);
 		for (String beanName : beanNames) {
 			if (!ScopedProxyUtils.isScopedTarget(beanName)) {
+				/**
+				 * 装饰成 EndpointBean
+				 *
+				 * new EndpointBean(Environment, beanName, beanType, () -> getBean(beanName))
+				 * */
 				EndpointBean endpointBean = createEndpointBean(beanName);
 				EndpointBean previous = byId.putIfAbsent(endpointBean.getId(), endpointBean);
+				// 存在重复的ID 就直接报错
 				Assert.state(previous == null, () -> "Found two endpoints with the id '" + endpointBean.getId() + "': '"
 						+ endpointBean.getBeanName() + "' and '" + previous.getBeanName() + "'");
 			}
 		}
+		// 返回结果
 		return byId.values();
 	}
 
@@ -149,13 +165,21 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 	private void addExtensionBeans(Collection<EndpointBean> endpointBeans) {
 		Map<EndpointId, EndpointBean> byId = endpointBeans.stream()
 				.collect(Collectors.toMap(EndpointBean::getId, Function.identity()));
+		// 找到有 @EndpointExtension 的bean
 		String[] beanNames = BeanFactoryUtils.beanNamesForAnnotationIncludingAncestors(this.applicationContext,
 				EndpointExtension.class);
 		for (String beanName : beanNames) {
+			// 装饰成 ExtensionBean
 			ExtensionBean extensionBean = createExtensionBean(beanName);
+			// 查找对应的 Endpoint，找不到就报错
 			EndpointBean endpointBean = byId.get(extensionBean.getEndpointId());
 			Assert.state(endpointBean != null, () -> ("Invalid extension '" + extensionBean.getBeanName()
 					+ "': no endpoint found with id '" + extensionBean.getEndpointId() + "'"));
+			/**
+			 * 将 extensionBean 设置给 endpointBean
+			 *
+			 * 注：得 @EndpointExtension(filter=A.class) 满足了 Filter 才行
+			 * */
 			addExtensionBean(endpointBean, extensionBean);
 		}
 	}
@@ -167,6 +191,9 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 	}
 
 	private void addExtensionBean(EndpointBean endpointBean, ExtensionBean extensionBean) {
+		/**
+		 * @EndpointExtension(filter=A.class) 满足了 Filter 才行
+		 * */
 		if (isExtensionExposed(endpointBean, extensionBean)) {
 			Assert.state(isEndpointExposed(endpointBean) || isEndpointFiltered(endpointBean),
 					() -> "Endpoint bean '" + endpointBean.getBeanName() + "' cannot support the extension bean '"
@@ -178,6 +205,12 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 	private Collection<E> convertToEndpoints(Collection<EndpointBean> endpointBeans) {
 		Set<E> endpoints = new LinkedHashSet<>();
 		for (EndpointBean endpointBean : endpointBeans) {
+			/**
+			 * 满足 @FilteredEndpoint  &&
+			 * 满足 {@link EndpointDiscoverer#filters} &&
+			 * 满足 {@link ControllerEndpointDiscoverer#isEndpointTypeExposed(Class)}
+			 * 		这个就是校验类上有 @ControllerEndpoint @RestControllerEndpoint 才行
+			 * */
 			if (isEndpointExposed(endpointBean)) {
 				endpoints.add(convertToEndpoint(endpointBean));
 			}
@@ -188,6 +221,7 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 	private E convertToEndpoint(EndpointBean endpointBean) {
 		MultiValueMap<OperationKey, O> indexed = new LinkedMultiValueMap<>();
 		EndpointId id = endpointBean.getId();
+		// 拿到标注了 @ReadOperation 、@WriteOperation 、@DeleteOperation 的方法 装饰 然后返回
 		addOperations(indexed, id, endpointBean.getBean(), false);
 		if (endpointBean.getExtensions().size() > 1) {
 			String extensionBeans = endpointBean.getExtensions().stream().map(ExtensionBean::getBeanName)
@@ -196,17 +230,28 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 					+ endpointBean.getBeanName() + " (" + extensionBeans + ")");
 		}
 		for (ExtensionBean extensionBean : endpointBean.getExtensions()) {
+			// 同上
 			addOperations(indexed, id, extensionBean.getBean(), true);
 		}
+		// 重复 key 就报错
 		assertNoDuplicateOperations(endpointBean, indexed);
 		List<O> operations = indexed.values().stream().map(this::getLast).filter(Objects::nonNull)
 				.collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
+		// 装饰然后返回
 		return createEndpoint(endpointBean.getBean(), id, endpointBean.isEnabledByDefault(), operations);
 	}
 
 	private void addOperations(MultiValueMap<OperationKey, O> indexed, EndpointId id, Object target,
 			boolean replaceLast) {
 		Set<OperationKey> replacedLast = new HashSet<>();
+		/**
+		 * 拿到标注了 @ReadOperation 、@WriteOperation 、@DeleteOperation 的方法 装饰 然后返回
+		 *
+		 * 将 Method 装饰成 DiscoveredOperationMethod
+		 * 将 target、DiscoveredOperationMethod、parameterValueMapper 装饰成 OperationInvoker
+		 * 使用 OperationInvokerAdvisor 对 OperationInvoker 进行装饰
+		 * 最后 DiscoveredOperationMethod + OperationInvokerAdvisor 构造出 Operation
+		 * */
 		Collection<O> operations = this.operationsFactory.createOperations(id, target);
 		for (O operation : operations) {
 			OperationKey key = createOperationKey(operation);
@@ -252,6 +297,7 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 
 	private boolean isEndpointExposed(EndpointBean endpointBean) {
 		return isFilterMatch(endpointBean.getFilter(), endpointBean) && !isEndpointFiltered(endpointBean)
+			   // 类得有 @ControllerEndpoint @RestControllerEndpoint
 				&& isEndpointTypeExposed(endpointBean.getBeanType());
 	}
 
@@ -265,8 +311,14 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 		return true;
 	}
 
+	/**
+	 * 是被过滤的，也就是不满足filter规则
+	 * @param endpointBean
+	 * @return
+	 */
 	private boolean isEndpointFiltered(EndpointBean endpointBean) {
 		for (EndpointFilter<E> filter : this.filters) {
+			// 不匹配，说明是被过滤的
 			if (!isFilterMatch(filter, endpointBean)) {
 				return true;
 			}
@@ -283,8 +335,10 @@ public abstract class EndpointDiscoverer<E extends ExposableEndpoint<O>, O exten
 			return true;
 		}
 		E endpoint = getFilterEndpoint(endpointBean);
+		// 拿到 泛型
 		Class<?> generic = ResolvableType.forClass(EndpointFilter.class, filter).resolveGeneric(0);
 		if (generic == null || generic.isInstance(endpoint)) {
+			// 实例化 EndpointFilter
 			EndpointFilter<E> instance = (EndpointFilter<E>) BeanUtils.instantiateClass(filter);
 			return isFilterMatch(instance, endpoint);
 		}

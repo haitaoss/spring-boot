@@ -66,24 +66,38 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 
 	@Override
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
+		// 环境变量
 		Environment environment = context.getEnvironment();
+		// 从元数据中获取 ConditionalOnAvailableEndpoint 注解的值
 		MergedAnnotation<ConditionalOnAvailableEndpoint> conditionAnnotation = metadata.getAnnotations()
 				.get(ConditionalOnAvailableEndpoint.class);
+		/**
+		 * 比如 @ConditionalOnAvailableEndpoint(endpoint = EnvironmentEndpoint.class) 返回的
+		 * target 就是 EnvironmentEndpoint
+		 * */
 		Class<?> target = getTarget(context, metadata, conditionAnnotation);
+		/**
+		 * target 必须得有 @Endpoint 或者 @EndpointExtension
+		 * 否则就报错 ，拿到 @Endpoint 注解的信息然后返回
+		 * */
 		MergedAnnotation<Endpoint> endpointAnnotation = getEndpointAnnotation(target);
 		return getMatchOutcome(environment, conditionAnnotation, endpointAnnotation);
 	}
 
 	private Class<?> getTarget(ConditionContext context, AnnotatedTypeMetadata metadata,
 			MergedAnnotation<ConditionalOnAvailableEndpoint> condition) {
+		// 获取 ConditionalOnAvailableEndpoint 注解的 endpoint 属性 的值
 		Class<?> target = condition.getClass("endpoint");
+		// 不是 Void 就返回
 		if (target != Void.class) {
 			return target;
 		}
+		// 是方法 且 有@Bean注解
 		Assert.state(metadata instanceof MethodMetadata && metadata.isAnnotated(Bean.class.getName()),
 				"EndpointCondition must be used on @Bean methods when the endpoint is not specified");
 		MethodMetadata methodMetadata = (MethodMetadata) metadata;
 		try {
+			// 返回方法返回值类型
 			return ClassUtils.forName(methodMetadata.getReturnTypeName(), context.getClassLoader());
 		}
 		catch (Throwable ex) {
@@ -94,10 +108,12 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 
 	protected MergedAnnotation<Endpoint> getEndpointAnnotation(Class<?> target) {
 		MergedAnnotations annotations = MergedAnnotations.from(target, SearchStrategy.TYPE_HIERARCHY);
+		// 存在 Endpoint 注解就返回
 		MergedAnnotation<Endpoint> endpoint = annotations.get(Endpoint.class);
 		if (endpoint.isPresent()) {
 			return endpoint;
 		}
+		// 存在 EndpointExtension 也行
 		MergedAnnotation<EndpointExtension> extension = annotations.get(EndpointExtension.class);
 		Assert.state(extension.isPresent(), "No endpoint is specified and the return type of the @Bean method is "
 				+ "neither an @Endpoint, nor an @EndpointExtension");
@@ -108,14 +124,47 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 			MergedAnnotation<ConditionalOnAvailableEndpoint> conditionAnnotation,
 			MergedAnnotation<Endpoint> endpointAnnotation) {
 		ConditionMessage.Builder message = ConditionMessage.forCondition(ConditionalOnAvailableEndpoint.class);
+		/**
+		 * @Endpoint(id = "env")
+		 * public class EnvironmentEndpoint {}
+		 *
+		 * 其实就是将 注解值装饰成 EndpointId 对象
+		 * */
 		EndpointId endpointId = EndpointId.of(environment, endpointAnnotation.getString("id"));
+
+		/**
+		 * 启用结果的值 获取逻辑：
+		 * 	1. 从environment读取属性 management.endpoint.`endpointId.toLowerCaseString()`.enabled 的值
+		 * 	2. 从environment读取属性 management.endpoints.enabled-by-default 的值
+		 * 	3. 注解的值 @Endpoint.enableByDefault() , 这个值默认是true
+		 * */
 		ConditionOutcome enablementOutcome = getEnablementOutcome(environment, endpointAnnotation, endpointId, message);
+		// 未启用，就直接返回
 		if (!enablementOutcome.isMatch()) {
 			return enablementOutcome;
 		}
+		/**
+		 * 启用，那就紧接着校验一下 @ConditionalOnAvailableEndpoint 允许暴露的端点
+		 *
+		 * @ConditionalOnAvailableEndpoint(exposure={}) 会映射成这个枚举的值 {@link EndpointExposure}
+		 * 		{ JMX("*"),WEB("health"),CLOUD_FOUNDRY("*") }
+		 *
+		 * */
 		Set<EndpointExposure> exposuresToCheck = getExposuresToCheck(conditionAnnotation);
+		/**
+		 * 默认是只有这一个 new ExposureFilter(environment, EndpointExposure.WEB)
+		 *
+		 * 实例化时就会从 environment 中获取属性值，来匹配是否暴露
+		 * 	management.endpoints.[web|jmx|cloud-foundry].exposure.include
+		 *  management.endpoints.[web|jmx|cloud-foundry].exposure.exclude
+		 * {@link ExposureFilter#ExposureFilter(Environment, EndpointExposure)}
+		 * */
 		Set<ExposureFilter> exposureFilters = getExposureFilters(environment);
 		for (ExposureFilter exposureFilter : exposureFilters) {
+			/**
+			 * exposuresToCheck.contains(exposureFilter.getExposure()) ---> 默认就是true
+			 * exposureFilter.isExposed(endpointId) ---> include满足 + 不满足exclude 就是true
+			 * */
 			if (exposuresToCheck.contains(exposureFilter.getExposure()) && exposureFilter.isExposed(endpointId)) {
 				return ConditionOutcome.match(message.because("marked as exposed by a 'management.endpoints."
 						+ exposureFilter.getExposure().name().toLowerCase() + ".exposure' property"));
@@ -132,11 +181,13 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 			return new ConditionOutcome(userDefinedEnabled,
 					message.because("found property " + key + " with value " + userDefinedEnabled));
 		}
+		// 属性值 management.endpoints.enabled-by-default
 		Boolean userDefinedDefault = isEnabledByDefault(environment);
 		if (userDefinedDefault != null) {
 			return new ConditionOutcome(userDefinedDefault, message.because(
 					"no property " + key + " found so using user defined default from " + ENABLED_BY_DEFAULT_KEY));
 		}
+		// 获取 @Endpoint 注解值，决定是否启用，默认是启用
 		boolean endpointDefault = endpointAnnotation.getBoolean("enableByDefault");
 		return new ConditionOutcome(endpointDefault,
 				message.because("no property " + key + " found so using endpoint default of " + endpointDefault));
@@ -180,6 +231,12 @@ class OnAvailableEndpointCondition extends SpringBootCondition {
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private ExposureFilter(Environment environment, EndpointExposure exposure) {
+			/**
+			 * 第二个参数很重要，会获取到 include 和 exclude 的值
+			 *
+			 * "management.endpoints." + getCanonicalName(exposure) + ".exposure" + ".include"
+			 * "management.endpoints." + getCanonicalName(exposure) + ".exposure" + ".exclude"
+			 * */
 			super((Class) ExposableEndpoint.class, environment,
 					"management.endpoints." + getCanonicalName(exposure) + ".exposure", exposure.getDefaultIncludes());
 			this.exposure = exposure;

@@ -39,12 +39,15 @@ class OnExpressionCondition extends SpringBootCondition {
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
 		String expression = (String) metadata.getAnnotationAttributes(ConditionalOnExpression.class.getName())
 				.get("value");
+		// 是否补充 #{}
 		expression = wrapIfNecessary(expression);
 		ConditionMessage.Builder messageBuilder = ConditionMessage.forCondition(ConditionalOnExpression.class,
 				"(" + expression + ")");
+		// 解析占位符
 		expression = context.getEnvironment().resolvePlaceholders(expression);
 		ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
 		if (beanFactory != null) {
+			// 执行 SPEL 表达式
 			boolean result = evaluateExpression(beanFactory, expression);
 			return new ConditionOutcome(result, messageBuilder.resultedIn(result));
 		}

@@ -16,31 +16,20 @@
 
 package org.springframework.boot.actuate.autoconfigure.endpoint.web;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.stream.Collectors;
-
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.autoconfigure.endpoint.EndpointAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.endpoint.expose.EndpointExposure;
 import org.springframework.boot.actuate.autoconfigure.endpoint.expose.IncludeExcludeEndpointFilter;
 import org.springframework.boot.actuate.endpoint.EndpointFilter;
+import org.springframework.boot.actuate.endpoint.EndpointId;
 import org.springframework.boot.actuate.endpoint.EndpointsSupplier;
+import org.springframework.boot.actuate.endpoint.OperationType;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
+import org.springframework.boot.actuate.endpoint.annotation.EndpointDiscoverer;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvokerAdvisor;
 import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
-import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.ExposableServletEndpoint;
-import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
-import org.springframework.boot.actuate.endpoint.web.PathMappedEndpoints;
-import org.springframework.boot.actuate.endpoint.web.PathMapper;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
-import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointDiscoverer;
-import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier;
-import org.springframework.boot.actuate.endpoint.web.annotation.ExposableControllerEndpoint;
-import org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointDiscoverer;
-import org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointsSupplier;
-import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpointDiscoverer;
+import org.springframework.boot.actuate.endpoint.web.*;
+import org.springframework.boot.actuate.endpoint.web.annotation.*;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -50,6 +39,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.stream.Collectors;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for web {@link Endpoint @Endpoint}
@@ -73,6 +67,13 @@ public class WebEndpointAutoConfiguration {
 		this.properties = properties;
 	}
 
+	/**
+	 * 读取的属性
+	 * 	management.endpoints.web.pathMapping.endpointId = newEndpointId
+	 *
+	 * PathMapper 会在下面的三个 EndpointDiscoverer 被用到，其作用是为了修改 endpoint 暴露的url
+	 * @return
+	 */
 	@Bean
 	public PathMapper webEndpointPathMapper() {
 		return new MappingWebEndpointPathMapper(this.properties.getPathMapping());
@@ -89,7 +90,16 @@ public class WebEndpointAutoConfiguration {
 	public WebEndpointDiscoverer webEndpointDiscoverer(ParameterValueMapper parameterValueMapper,
 			EndpointMediaTypes endpointMediaTypes, ObjectProvider<PathMapper> endpointPathMappers,
 			ObjectProvider<OperationInvokerAdvisor> invokerAdvisors,
-			ObjectProvider<EndpointFilter<ExposableWebEndpoint>> filters) {
+													   ObjectProvider<EndpointFilter<ExposableWebEndpoint>> filters) {
+		/**
+		 * - ParameterValueMapper 反射回调方法时，会使用这个来对参数进行装换
+		 * - PathMapper 用来替换 endpoint 暴露的url
+		 * - OperationInvokerAdvisor 用来对调用@ReadOperation、@WriteOperation、@DeleteOperation方法的装饰类进行增强
+		 * 		{@link EndpointDiscoverer#getOperationsFactory(ParameterValueMapper, Collection)}
+		 * 		{@link DiscoveredOperationsFactory#createOperation(EndpointId, Object, Method, OperationType, Class)}
+		 *
+		 * - EndpointFilter<ExposableWebEndpoint> 过滤哪些 endpoint 应该暴露
+		 * */
 		return new WebEndpointDiscoverer(this.applicationContext, parameterValueMapper, endpointMediaTypes,
 				endpointPathMappers.orderedStream().collect(Collectors.toList()),
 				invokerAdvisors.orderedStream().collect(Collectors.toList()),
@@ -100,6 +110,10 @@ public class WebEndpointAutoConfiguration {
 	@ConditionalOnMissingBean(ControllerEndpointsSupplier.class)
 	public ControllerEndpointDiscoverer controllerEndpointDiscoverer(ObjectProvider<PathMapper> endpointPathMappers,
 			ObjectProvider<Collection<EndpointFilter<ExposableControllerEndpoint>>> filters) {
+		/**
+		 * - PathMapper 用来替换 endpoint 暴露的url
+		 * - EndpointFilter<ExposableControllerEndpoint> 过滤哪些 endpoint 应该暴露
+		 * */
 		return new ControllerEndpointDiscoverer(this.applicationContext,
 				endpointPathMappers.orderedStream().collect(Collectors.toList()),
 				filters.getIfAvailable(Collections::emptyList));
@@ -108,11 +122,19 @@ public class WebEndpointAutoConfiguration {
 	@Bean
 	@ConditionalOnMissingBean
 	public PathMappedEndpoints pathMappedEndpoints(Collection<EndpointsSupplier<?>> endpointSuppliers) {
+		/**
+		 * endpointSuppliers 其实就是 webEndpointDiscoverer、controllerEndpointDiscoverer、servletEndpointDiscoverer 的集合
+		 * */
 		return new PathMappedEndpoints(this.properties.getBasePath(), endpointSuppliers);
 	}
 
 	@Bean
 	public IncludeExcludeEndpointFilter<ExposableWebEndpoint> webExposeExcludePropertyEndpointFilter() {
+		/**
+		 * 根据下面两个属性 构造出 IncludeExcludeEndpointFilter
+		 * 	management.endpoints.web.exposure.include
+		 * 	management.endpoints.web.exposure.exclude
+		 * */
 		WebEndpointProperties.Exposure exposure = this.properties.getExposure();
 		return new IncludeExcludeEndpointFilter<>(ExposableWebEndpoint.class, exposure.getInclude(),
 				exposure.getExclude(), EndpointExposure.WEB.getDefaultIncludes());
@@ -120,6 +142,11 @@ public class WebEndpointAutoConfiguration {
 
 	@Bean
 	public IncludeExcludeEndpointFilter<ExposableControllerEndpoint> controllerExposeExcludePropertyEndpointFilter() {
+		/**
+		 * 根据下面两个属性 构造出 IncludeExcludeEndpointFilter
+		 * management.endpoints.web.exposure.include
+		 * management.endpoints.web.exposure.exclude
+		 * */
 		WebEndpointProperties.Exposure exposure = this.properties.getExposure();
 		return new IncludeExcludeEndpointFilter<>(ExposableControllerEndpoint.class, exposure.getInclude(),
 				exposure.getExclude());
@@ -134,6 +161,10 @@ public class WebEndpointAutoConfiguration {
 		ServletEndpointDiscoverer servletEndpointDiscoverer(ApplicationContext applicationContext,
 				ObjectProvider<PathMapper> endpointPathMappers,
 				ObjectProvider<EndpointFilter<ExposableServletEndpoint>> filters) {
+			/**
+			 * - PathMapper 用来替换 endpoint 暴露的url
+			 * - EndpointFilter<ExposableServletEndpoint> 过滤哪些 endpoint 应该暴露
+			 * */
 			return new ServletEndpointDiscoverer(applicationContext,
 					endpointPathMappers.orderedStream().collect(Collectors.toList()),
 					filters.orderedStream().collect(Collectors.toList()));

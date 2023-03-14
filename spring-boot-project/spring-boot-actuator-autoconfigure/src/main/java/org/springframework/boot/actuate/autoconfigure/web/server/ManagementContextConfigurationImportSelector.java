@@ -18,8 +18,10 @@ package org.springframework.boot.actuate.autoconfigure.web.server;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration;
@@ -61,17 +63,28 @@ class ManagementContextConfigurationImportSelector implements DeferredImportSele
 		OrderComparator.sort(configurations);
 		List<String> names = new ArrayList<>();
 		for (ManagementConfiguration configuration : configurations) {
+			/**
+			 * configuration.getContextType() 是解析配置类上的 @ManagementContextConfiguration 的值 得到的，
+			 * 若没有这个注解 会赋值为 ANY
+			 * */
 			if (configuration.getContextType() == ManagementContextType.ANY
 					|| configuration.getContextType() == contextType) {
 				names.add(configuration.getClassName());
 			}
 		}
+		/**
+		 * 返回，会被作为配置类 注册到BeanFactory中
+		 * {@link ConfigurationClassParser#processImports(ConfigurationClass, ConfigurationClassParser.SourceClass, Collection, Predicate, boolean)}
+		 * */
 		return StringUtils.toStringArray(names);
 	}
 
 	private List<ManagementConfiguration> getConfigurations() {
 		SimpleMetadataReaderFactory readerFactory = new SimpleMetadataReaderFactory(this.classLoader);
 		List<ManagementConfiguration> configurations = new ArrayList<>();
+		/**
+		 * 会读取 META-INF/spring.factories 和 spring/`ManagementContextConfiguration.class.getName()`.imports 中的内容
+		 * */
 		for (String className : loadFactoryNames()) {
 			addConfiguration(readerFactory, configurations, className);
 		}

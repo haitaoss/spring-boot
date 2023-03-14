@@ -16,14 +16,6 @@
 
 package org.springframework.boot.actuate.endpoint.annotation;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.Objects;
-
 import org.springframework.boot.actuate.endpoint.EndpointId;
 import org.springframework.boot.actuate.endpoint.Operation;
 import org.springframework.boot.actuate.endpoint.OperationType;
@@ -36,6 +28,10 @@ import org.springframework.core.MethodIntrospector;
 import org.springframework.core.MethodIntrospector.MetadataLookup;
 import org.springframework.core.annotation.MergedAnnotation;
 import org.springframework.core.annotation.MergedAnnotations;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.*;
 
 /**
  * Factory to create an {@link Operation} for annotated methods on an
@@ -88,8 +84,11 @@ abstract class DiscoveredOperationsFactory<O extends Operation> {
 		}
 		DiscoveredOperationMethod operationMethod = new DiscoveredOperationMethod(method, operationType,
 				annotation.asAnnotationAttributes());
+		// 构造出 OperationInvoker
 		OperationInvoker invoker = new ReflectiveOperationInvoker(target, operationMethod, this.parameterValueMapper);
+		// 装饰 invoker
 		invoker = applyAdvisors(endpointId, operationMethod, invoker);
+		// 生成 Operation
 		return createOperation(endpointId, operationMethod, invoker);
 	}
 

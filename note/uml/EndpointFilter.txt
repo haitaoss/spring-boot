@@ -1,0 +1,47 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+class CloudFoundryEndpointFilter
+class ControllerEndpointFilter
+class DiscovererEndpointFilter {
+  - discoverer: Class<EndpointDiscoverer<?, ?>>
+  + match(DiscoveredEndpoint<?>): boolean
+}
+interface EndpointFilter<E> << interface >> {
+  + match(E): boolean
+}
+interface ExposableEndpoint<O> << interface >> {
+  + isEnableByDefault(): boolean
+  + getEndpointId(): EndpointId
+  + getOperations(): Collection<O>
+}
+annotation FunctionalInterface << annotation >>
+class IncludeExcludeEndpointFilter<E> {
+  - exclude: EndpointPatterns
+  - include: EndpointPatterns
+  - endpointType: Class<E>
+  - defaultIncludes: EndpointPatterns
+  - bind(Binder, String): List<String>
+  + match(E): boolean
+  + match(EndpointId): boolean
+  - isExcluded(EndpointId): boolean
+  - isIncluded(EndpointId): boolean
+}
+class JmxEndpointFilter
+class ServletEndpointFilter
+class WebEndpointFilter
+
+CloudFoundryEndpointFilter    -[#000082,plain]-^  DiscovererEndpointFilter
+ControllerEndpointFilter      -[#000082,plain]-^  DiscovererEndpointFilter
+DiscovererEndpointFilter      -[#008200,dashed]-^  EndpointFilter
+EndpointFilter                -[#595959,dashed]->  ExposableEndpoint
+EndpointFilter                -[#999900,dotted]-  FunctionalInterface
+IncludeExcludeEndpointFilter  -[#008200,dashed]-^  EndpointFilter
+IncludeExcludeEndpointFilter  -[#595959,dashed]->  ExposableEndpoint
+JmxEndpointFilter             -[#000082,plain]-^  DiscovererEndpointFilter
+ServletEndpointFilter         -[#000082,plain]-^  DiscovererEndpointFilter
+WebEndpointFilter             -[#000082,plain]-^  DiscovererEndpointFilter
+@enduml

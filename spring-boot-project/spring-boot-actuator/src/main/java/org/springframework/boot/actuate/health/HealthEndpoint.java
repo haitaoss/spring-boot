@@ -81,6 +81,7 @@ public class HealthEndpoint extends HealthEndpointSupport<HealthContributor, Hea
 
 	@ReadOperation
 	public HealthComponent healthForPath(@Selector(match = Match.ALL_REMAINING) String... path) {
+		// path 其实就是 group 的name
 		return health(ApiVersion.V3, path);
 	}
 

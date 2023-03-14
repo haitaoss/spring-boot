@@ -16,13 +16,13 @@
 
 package org.springframework.boot.actuate.endpoint.invoker.cache;
 
-import java.util.function.Function;
-
 import org.springframework.boot.actuate.endpoint.EndpointId;
 import org.springframework.boot.actuate.endpoint.OperationType;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvokerAdvisor;
 import org.springframework.boot.actuate.endpoint.invoke.OperationParameters;
+
+import java.util.function.Function;
 
 /**
  * {@link OperationInvokerAdvisor} to optionally provide result caching support.
@@ -32,22 +32,24 @@ import org.springframework.boot.actuate.endpoint.invoke.OperationParameters;
  */
 public class CachingOperationInvokerAdvisor implements OperationInvokerAdvisor {
 
-	private final Function<EndpointId, Long> endpointIdTimeToLive;
+    private final Function<EndpointId, Long> endpointIdTimeToLive;
 
-	public CachingOperationInvokerAdvisor(Function<EndpointId, Long> endpointIdTimeToLive) {
-		this.endpointIdTimeToLive = endpointIdTimeToLive;
-	}
+    public CachingOperationInvokerAdvisor(Function<EndpointId, Long> endpointIdTimeToLive) {
+        this.endpointIdTimeToLive = endpointIdTimeToLive;
+    }
 
-	@Override
-	public OperationInvoker apply(EndpointId endpointId, OperationType operationType, OperationParameters parameters,
-			OperationInvoker invoker) {
-		if (operationType == OperationType.READ && CachingOperationInvoker.isApplicable(parameters)) {
-			Long timeToLive = this.endpointIdTimeToLive.apply(endpointId);
-			if (timeToLive != null && timeToLive > 0) {
-				return new CachingOperationInvoker(invoker, timeToLive);
-			}
-		}
-		return invoker;
-	}
+    @Override
+    public OperationInvoker apply(EndpointId endpointId, OperationType operationType, OperationParameters parameters,
+                                  OperationInvoker invoker) {
+        if (operationType == OperationType.READ && CachingOperationInvoker.isApplicable(parameters)) {
+            // 设置了存活时间
+            Long timeToLive = this.endpointIdTimeToLive.apply(endpointId);
+            if (timeToLive != null && timeToLive > 0) {
+                // 就装饰一下
+                return new CachingOperationInvoker(invoker, timeToLive);
+            }
+        }
+        return invoker;
+    }
 
 }

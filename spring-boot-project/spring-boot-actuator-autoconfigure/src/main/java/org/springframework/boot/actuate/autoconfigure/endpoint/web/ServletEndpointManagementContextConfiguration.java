@@ -49,6 +49,11 @@ public class ServletEndpointManagementContextConfiguration {
 	@Bean
 	public IncludeExcludeEndpointFilter<ExposableServletEndpoint> servletExposeExcludePropertyEndpointFilter(
 			WebEndpointProperties properties) {
+		/**
+		 * 根据下面两个属性 构造出 IncludeExcludeEndpointFilter
+		 * 	management.endpoints.web.exposure.include
+		 * 	management.endpoints.web.exposure.exclude
+		 * */
 		WebEndpointProperties.Exposure exposure = properties.getExposure();
 		return new IncludeExcludeEndpointFilter<>(ExposableServletEndpoint.class, exposure.getInclude(),
 				exposure.getExclude());
@@ -61,6 +66,12 @@ public class ServletEndpointManagementContextConfiguration {
 		@Bean
 		public ServletEndpointRegistrar servletEndpointRegistrar(WebEndpointProperties properties,
 				ServletEndpointsSupplier servletEndpointsSupplier, DispatcherServletPath dispatcherServletPath) {
+			/**
+			 *  - properties 是用来拼接路径前缀的
+			 *  - servletEndpointsSupplier 是用来获取 @ServletEndpoint 的bean的
+			 *
+			 *  将 servletEndpointsSupplier.getEndpoints() 的映射成 Servlet ,然后使用 ServletContext 进行注册
+			 * */
 			return new ServletEndpointRegistrar(dispatcherServletPath.getRelativePath(properties.getBasePath()),
 					servletEndpointsSupplier.getEndpoints());
 		}

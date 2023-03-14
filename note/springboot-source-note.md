@@ -68,6 +68,32 @@ public @interface EnableAutoConfiguration {
 }
 ```
 
+```java
+/**
+ * 1. 会读取这两个文件拿到 自动注入的类 是啥：
+ *  - 读取 META-INF/spring.factories 文件 key是 `AutoConfiguration.class.getName()`
+ *  - 读取 META-INF/spring/`AutoConfiguration.class.getName()`.imports 文件的内容
+ *
+ * 2. 排除的类可以通过下面三种方式配置：
+ *         2.1 注解的 excludeName 属性的值
+ *         2.2 注解的 exclude 属性的值
+ *         2.3 属性 spring.autoconfigure.exclude 的值
+ *
+ * 3. 会读取 META-INF/spring.factories 中key是 `AutoConfigurationImportFilter.class.getName()`
+ *    作为 filter ，用来过滤掉 configurations
+ *
+ * 4. 会读取 META-INF/spring.factories 中key是 `AutoConfigurationImportListener.class.getName()`
+ *    实例化后，发布事件(其实就是回调方法)
+ *
+ *    注：实例化后支持这些接口的注入 BeanClassLoaderAware、BeanFactoryAware、EnvironmentAware、ResourceLoaderAware
+ * 
+ * 5. 对 List<configClassName> 进行排序
+ *      5.1 先按照类名字符串进行排序
+ *      5.2 在按照 Order 接口的值进行排序
+ *      5.3 最后按照 @AutoConfigureBefore @AutoConfigureAfter      
+ * */
+```
+
 # SpringBoot 生命周期
 
 ```java
@@ -196,7 +222,89 @@ public @interface EnableAutoConfiguration {
  * */
 ```
 
-# 属性文件的加载顺序
+# @Conditional 注解
+
+| 注解                                                         | 作用                                                         | 分类                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | -------------------------- |
+| @ConditionalOnClass                                          | ClassLoader能加载到类，才是匹配                              | Class Conditions           |
+| @ConditionalOnMissingClass                                   | ClassLoader不能加载到类，才是匹配                            | Class Conditions           |
+| @ConditionalOnBean                                           | BeanFactory注册的bean，存在 **bean的类型 或者 bean上有注解 或者 bean的name 一致**，才是匹配 | Bean Conditions            |
+| @ConditionalOnMissingBean                                    | BeanFactory注册的bean，存在 **bean的类型 或者 bean上有注解 或者 bean的name 一致 ** 的就是不匹配 | Bean Conditions            |
+| ConditionalOnSingleCandidate                                 | BeanFactory注册的bean，存在 bean的类型 或者 bean上有注解 或者 bean的name 一致的**个数只有一个** 或者 有多个bean但是**只有一个有@Primary** 是匹配 | Bean Conditions            |
+| @ConditionalOnProperty                                       | Environment中 属性存在 且 属性值一致 就是匹配                | Property Conditions        |
+| [@ConditionalOnAvailableEndpoint](#@ConditionalOnAvailableEndpoint) | 会根据属性值决定是匹配                                       | Property Conditions        |
+| @ConditionalOnResource                                       | context.getResourceLoader() 能加载到资源 才是匹配            | Resource Conditions        |
+| @ConditionalOnWebApplication                                 | 其实就是根据 ClassLoader 中是否存在某个类,紧接着在判断 Environment 是某个类型 或者 ResourceLoader 是某个类型 就是匹配 | Web Application Conditions |
+| @ConditionalOnNotWebApplication                              | 同上的反逻辑                                                 | Web Application Conditions |
+| @ConditionalOnWarDeployment                                  | `applicationContext.getServletContext() != null` 就是匹配。<br />注：看懂 SpringBoot 是如何启动web容器的就知道了。war包的方式是在创建IOC容器时就设置了 ServletContext ，所以在注册bean的时候，可以用这个属性来判断是否是 war 包运行的。嵌入式Web容器是在实例化 DispatcherServlet 是才设置 ServletContext | Web Application Conditions |
+| @ConditionalOnExpression                                     | 就是执行SPEL表达式，结果是啥就是啥                           | SpEL Expression Conditions |
+
+
+
+## 类图和看源码思路
+
+> ```java
+> /**
+>  * Spring在扫描bean、注册扫描到的ConfigClass、注册@Bean的方法时会回调这个方法
+>  *      {@link Condition#matches(ConditionContext, AnnotatedTypeMetadata)}
+>  *
+>  * 而 SpringBootCondition 重写了 matches 方法
+>  *      {@link SpringBootCondition#matches(ConditionContext, AnnotatedTypeMetadata)}
+>  * 其执行逻辑是执行其抽象方法
+>  *      {@link SpringBootCondition#getMatchOutcome(ConditionContext, AnnotatedTypeMetadata)}
+>  *      
+>  * 所以说只需要看 抽象方法的实现逻辑，就能知道 SpringBootCondition具体子类的逻辑了，比如
+>  * {@link OnBeanCondition#getMatchOutcome(ConditionContext, AnnotatedTypeMetadata)}
+>  * */
+> ```
+>
+> ```java
+> /**
+>  *  获取自动配置类时，会对自动配置类进行过滤掉
+>  *      {@link AutoConfigurationImportSelector#getAutoConfigurationEntry(AnnotationMetadata)}
+>  *
+>  *  具体有哪些过滤类时读取 META-INF/spring.factories 中key是 `AutoConfigurationImportFilter.class.getName()`
+>  *  作为 filter ，用来过滤掉 configurations
+>  *      getConfigurationClassFilter().filter(configurations);
+>  *
+>  *  而 AutoConfigurationImportFilter 唯一的实现类是 FilteringSpringBootCondition，具体实现逻辑是
+>  *  {@link FilteringSpringBootCondition#match(String[], AutoConfigurationMetadata)}
+>  *  {@link FilteringSpringBootCondition#getOutcomes(String[], AutoConfigurationMetadata)}
+>  *
+>  * 注：所以需要过滤自动配置类，我们可以继承 FilteringSpringBootCondition 然后实现 getOutcomes 方法即可 ，
+>  *    最后将类全名写到 spring.factories 中就可以了。 
+>  * */
+> ```
+
+![Conditional-0](.springboot-source-note_imgs/Conditional-0.png)
+
+## @ConditionalOnAvailableEndpoint
+
+```java
+/**
+ *
+ * @ConditionalOnAvailableEndpoint(endpoint = EnvironmentEndpoint.class)
+ *
+ * 1. ConditionalOnAvailableEndpoint 其实就是一个 @Conditional 注解，会用来判断是否将这个bean注册到BeanFactory中
+ *
+ * 2. 用来判断 Endpoint 是否启用(为true就是启用)，
+ *      2.1 从environment读取属性 management.endpoint.`endpointId.toLowerCaseString()`.enabled 的值 （没设置就往下查找）
+ *      2.2 从environment读取属性 management.endpoints.enabled-by-default 的值（没设置就往下查找）
+ *      2.3 注解的值 @Endpoint.enableByDefault() , 这个值默认是true
+ *
+ * 3. 若启用，在进行 include满足 + 不满足exclude 的判断
+ *      management.endpoints.[web|jmx|cloud-foundry].exposure.include
+ *      management.endpoints.[web|jmx|cloud-foundry].exposure.exclude
+ *
+ *      注：分别的默认值是 { JMX("*") , WEB("health") , CLOUD_FOUNDRY("*") }
+ *
+ * 详细的代码看 {@link OnAvailableEndpointCondition#getMatchOutcome(ConditionContext, AnnotatedTypeMetadata)}
+ *
+ * 自动注入的端点会使用这个注解来决定 @ConditionalOnAvailableEndpoint 是否注入，比如 EnvironmentEndpointAutoConfiguration
+ * */
+```
+
+# application.yml的加载
 
 > 代码太狠了，只能看懂整体流程，没有细琢磨，反正能实现自定义扩展就挺好的。
 
@@ -912,139 +1020,46 @@ class MyServlet extends HttpServlet {
 ## SpringBoot 嵌入式Tomcat启动流程
 
 ```java
-        /**
-         * 1. 启动Tomcat服务器
-         * {@link org.apache.catalina.startup.Tomcat#start()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardServer#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardService#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardEngine#startInternal()}
-         *      {@link ContainerBase#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardHost#startInternal()}
-         *      {@link ContainerBase#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardContext#startInternal()}
-         *
-         *      看着很牛逼，但是还没有悟。StandardServer -> StandardService -> StandardEngine -> StandardHost -> StandardContext
-         * 2. {@link StandardContext#startInternal()} 里面做了什么
-         *      2.1 容器初始化器回调 {@link ServletContainerInitializer#onStartup(Set, ServletContext)} ,可以在回调方法内 注册三大组件。
-         *          SpringBoot 嵌入式Tomcat，就是在这里注册 {@link ServletContextInitializer} 类型的bean的
-         *
-         *      2.2 启动监听器 {@link StandardContext#listenerStart() }
-         *          - 有 findApplicationListeners，那就反射创建存到 result 集合中（这个就是通过 @WebListener 注册才会有）
-         *          - 遍历 result 集合，按照类型 分开存到两个集合中: eventListeners、lifecycleListeners
-         *          - 获取通过 {@link ServletContainerInitializer#onStartup(Set, ServletContext)} 注册的Listener 按照类型添加到两个集合中: eventListeners、lifecycleListeners
-         *          - 设置一个属性值 `context.setNewServletContextListenerAllowed(false);` 。这个属性是为了防止在注册 lifecycleListener
-         *          - 回调 lifecycleListeners 集合里面的 `contextInitialized` 方法
-         *              注：不支持在contextInitialized 添加 lifecycleListener {@link ApplicationContext#addListener(EventListener)}
-         *          注：可以看到通过 @WebListener 注册的监听器优先级比 {@link ServletContainerInitializer#onStartup(Set, ServletContext)} 注册的监听器先执行
-         *
-         *      2.3 启动过滤器 {@link StandardContext#filterStart()}
-         *          - 回调初始化方法 {@link ApplicationFilterConfig#initFilter()}
-         *
-         *      2.4 加载并初始化所有 设置 `load on startup` 的servlet
-         *          - {@link StandardContext#loadOnStartup(Container[])}
-         *          - {@link StandardWrapper#loadServlet()} 如果servlet没有创建就创建
-         *          - {@link Servlet#init(ServletConfig)} 回调servlet的初始化方法
-         *
-         *      2.5 启动tomcat后台线程 {@link ContainerBase#threadStart()}
-         * */
-
-```
-
-```java
-public static void main(String[] args) throws Exception {
-        // SpringApplication.run(SpringbootApplication.class, args);
-        Tomcat tomcat = new Tomcat();
-        tomcat.setPort(8099);
-        String contextPath = "/test";
-        tomcat.addContext(contextPath, "/Users/haitao/Desktop/webapps");
-        tomcat.addServlet(contextPath, "aServlet", new HttpServlet() {
-            @Override
-            public void init() throws ServletException {
-                System.out.println("init");
-            }
-
-            @Override
-            protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-                System.out.println("hahahah");
-            }
-        }).addMapping("/a");
-
-        tomcat.start();
-  			tomcat.getServer().await();
-    }
-```
-
-## SpringBoot 嵌入式Web应用启动流程
-
-> 这个已经可以废弃了，具体的整理到SpringMVC源码里面了
-
-```java
 /**
-         * 1. refresh
-         * {@link org.springframework.context.support.AbstractApplicationContext#refresh()}
-         *
-         * 2. onRefresh
-         * {@link org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#onRefresh()}
-         *
-         * 3. 创建 WebServer
-         * {@link org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#createWebServer()}
-         *
-         * 4. 从IOC容器中获取类型 ServletWebServerFactory 的bean。比如 Tomcat、Undertow、Jetty
-         * {@link ServletWebServerApplicationContext#getWebServerFactory()}
-         *
-         * 5. 通过 ServletWebServerFactory 创建 Webserver。{@link org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory#getWebServer(ServletContextInitializer...)}
-         *      入参 ServletContextInitializer 是一个匿名内部类 {@link ServletWebServerApplicationContext#getSelfInitializer()}，这个非常关键
-         *      web容器启动时会回调这个方法，将 IOC 容器中的 Listener、Filter、Servlet 注册到 web容器中(处理的是SpringBoot提供的注册web三大组件)
-         *
-         * 6. 准备 context ,然后将 context 添加到 Container(也就是加到 Webserver 中)
-         * {@link org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory#prepareContext(org.apache.catalina.Host, org.springframework.boot.web.servlet.ServletContextInitializer[])}
-         *     1. 创建context {@link org.springframework.boot.web.embedded.tomcat.TomcatEmbeddedContext}
-         *     2. 将 context 添加到 container 中。{@link StandardHost#addChild(Container)}
-         *     3. 配置 context。主要是设置web容器启动的初始化器
-         *          {@link org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory#configureContext(org.apache.catalina.Context, org.springframework.boot.web.servlet.ServletContextInitializer[])}
-         *              {@link Context#addServletContainerInitializer(ServletContainerInitializer, Set)}
-         *
-         * 7. 真正要启动web容器了 {@link org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory#getTomcatWebServer(org.apache.catalina.startup.Tomcat)}
-         *
-         * 8. web容器的初始化 {@link org.springframework.boot.web.embedded.tomcat.TomcatWebServer#initialize()}
-         *
-         * 9. 启动Tomcat服务器
-         * {@link org.apache.catalina.startup.Tomcat#start()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardServer#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardService#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardEngine#startInternal()}
-         *      {@link ContainerBase#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardHost#startInternal()}
-         *      {@link ContainerBase#startInternal()}
-         *      {@link LifecycleBase#start()}
-         *      {@link StandardContext#startInternal()}
-         *
-         *      看着很牛逼，但是还没有悟。StandardServer -> StandardService -> StandardEngine -> StandardHost -> StandardContext
-         *
-         * 10. 启动web容器
-         * {@link org.apache.catalina.core.StandardContext#startInternal()}
-         *      9.1 启动操作，回调 ServletContainerInitializer {@link TomcatStarter#onStartup(Set, ServletContext)}
-         *              for (ServletContextInitializer initializer : this.initializers) {
-         * 				    initializer.onStartup(servletContext);
-         *              }
-         *              举例：
-         *               {@link ServletWebServerApplicationContext#getSelfInitializer()} 这是用来注册 ServletContextInitializer 这种类型的。该类型是 SpringBoot 提供的。
-         *                  具体的实现类有：DispatcherServletRegistrationBean(这个是通过自动装配注册的)、ServletListenerRegistrationBean、FilterRegistrationBean、ServletRegistrationBean
-         *
-         *      9.2 初始化回调 Listener {@link org.apache.catalina.core.StandardContext#listenerStart()}
-         *      9.3 初始化回调 Filter {@link org.apache.catalina.core.StandardContext#filterStart()}
-         *
-         *
-         * */
+ * 1. 启动Tomcat服务器
+ * {@link org.apache.catalina.startup.Tomcat#start()}
+ *      {@link LifecycleBase#start()}
+ *      {@link StandardServer#startInternal()}
+ *      {@link LifecycleBase#start()}
+ *      {@link StandardService#startInternal()}
+ *      {@link LifecycleBase#start()}
+ *      {@link StandardEngine#startInternal()}
+ *      {@link ContainerBase#startInternal()}
+ *      {@link LifecycleBase#start()}
+ *      {@link StandardHost#startInternal()}
+ *      {@link ContainerBase#startInternal()}
+ *      {@link LifecycleBase#start()}
+ *      {@link StandardContext#startInternal()}
+ *
+ *      看着很牛逼，但是还没有悟。StandardServer -> StandardService -> StandardEngine -> StandardHost -> StandardContext
+ * 2. {@link StandardContext#startInternal()} 里面做了什么
+ *      2.1 容器初始化器回调 {@link ServletContainerInitializer#onStartup(Set, ServletContext)} ,可以在回调方法内 注册三大组件。
+ *          SpringBoot 嵌入式Tomcat，就是在这里注册 {@link ServletContextInitializer} 类型的bean的
+ *
+ *      2.2 启动监听器 {@link StandardContext#listenerStart() }
+ *          - 有 findApplicationListeners，那就反射创建存到 result 集合中（这个就是通过 @WebListener 注册才会有）
+ *          - 遍历 result 集合，按照类型 分开存到两个集合中: eventListeners、lifecycleListeners
+ *          - 获取通过 {@link ServletContainerInitializer#onStartup(Set, ServletContext)} 注册的Listener 按照类型添加到两个集合中: eventListeners、lifecycleListeners
+ *          - 设置一个属性值 `context.setNewServletContextListenerAllowed(false);` 。这个属性是为了防止在注册 lifecycleListener
+ *          - 回调 lifecycleListeners 集合里面的 `contextInitialized` 方法
+ *              注：不支持在contextInitialized 添加 lifecycleListener {@link ApplicationContext#addListener(EventListener)}
+ *          注：可以看到通过 @WebListener 注册的监听器优先级比 {@link ServletContainerInitializer#onStartup(Set, ServletContext)} 注册的监听器先执行
+ *
+ *      2.3 启动过滤器 {@link StandardContext#filterStart()}
+ *          - 回调初始化方法 {@link ApplicationFilterConfig#initFilter()}
+ *
+ *      2.4 加载并初始化所有 设置 `load on startup` 的servlet
+ *          - {@link StandardContext#loadOnStartup(Container[])}
+ *          - {@link StandardWrapper#loadServlet()} 如果servlet没有创建就创建
+ *          - {@link Servlet#init(ServletConfig)} 回调servlet的初始化方法
+ *
+ *      2.5 启动tomcat后台线程 {@link ContainerBase#threadStart()}
+ * */
 ```
 
 ## SpringBoot 独立Web应用启动流程
@@ -1078,63 +1093,63 @@ public static void main(String[] args) throws Exception {
 
 ```java
 /**
-         *
-         * Servlet3.0 支持注解开发。
-         *  1. 提供一个接口 {@link javax.servlet.ServletContainerInitializer#onStartup(java.util.Set, javax.servlet.ServletContext)}
-         *      web容器启动时会回调该方法，第一个参数就是要处理的类型 第二个参数就是web容器上下文
-         *  2. 提供一个注解 @HandlesTypes(WebApplicationInitializer.class)
-         *      就是 onStartup 第一个入参 会传入什么类型的类
-         *
-         * SpringBoot 独立web项目启动流程：
-         *
-         * 1. 当web容器启动时 会获取ClassLoader 里面所有 ServletContainerInitializer 类型的实例，回调 onStartup 方法 {@link javax.servlet.ServletContainerInitializer#onStartup(java.util.Set, javax.servlet.ServletContext)}
-         *  而依赖 spring-web-5.3.14.jar 中 有这个类 {@link SpringServletContainerInitializer} 实现ServletContainerInitializer接口，
-         *  所以web容器启动时会回调这个方法 {@link SpringServletContainerInitializer#onStartup(Set, ServletContext)}
-         *
-         * 2. {@link SpringServletContainerInitializer#onStartup(Set, ServletContext)} 的逻辑
-         *      2.1 判断 类不是接口 且 不是抽象类 且 是WebApplicationInitializer的子类 --> 存到集合中
-         *      2.2 使用 {@link AnnotationAwareOrderComparator} 对集合进行升序排序。可通过这三种方式设置排序值：Ordered接口、@Order、@Priority
-         *      2.3 遍历集合，回调 {@link WebApplicationInitializer#onStartup(ServletContext)}
-         *
-         * 3. SpringBoot 提供一个抽象类 SpringBootServletInitializer 实现了 WebApplicationInitializer 接口，所以我们继承抽象类，这样 web容器启动的时候就会执行，
-         *      然后就能完成 IOC 容器的初始化。
-         *      所以会回调这个方法 {@link SpringBootServletInitializer#onStartup(ServletContext)}
-         *      
-         *      3.1 spring容器的配置类是啥？
-         *          1. 调用模板方法 {@link SpringBootServletInitializer#configure(SpringApplicationBuilder)}。子类可重写这个方法，往里面设置 sources
-         *          2. getAllSources 为空，会判断当前类是否有 @Configuration 注解，有就把当前类设置为 primarySources
-         *          3. getAllSources 为空 ,直接报错
-         *          
-         *      3.2 创建 springboot 实例
-         *          {@link SpringBootServletInitializer#createSpringApplicationBuilder()} 实例化的关键点就是会加载 META-INF/spring.factories ,
-         *          解析key-value对作为 SpringBoot 实例的属性：bootstrapRegistryInitializers、initializers、listeners
-         *          
-         *      3.3 给 SpringBoot 实例添加一个 initializer ，这个就是区别嵌入式web容器 和 独立web项目的关键初始化器
-         *          `builder.initializers(new ServletContextApplicationContextInitializer(servletContext));`
-         *
-         * 4. 启动 SpringBoot {@link SpringApplication#run(String...)}
-         *
-         * 5. 准备context {@link SpringApplication#prepareContext(DefaultBootstrapContext, ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)}
-         *      5.1 初始化IOC 容器 {@link SpringApplication#applyInitializers(ConfigurableApplicationContext)}
-         *          会回调这个方法设置属性 {@link ServletContextApplicationContextInitializer#initialize(ConfigurableWebApplicationContext)}
-         *          这里属性就是后面判断是 嵌入式web容器 还是 独立web项目的关键
-         *      5.2 关键点就是吧 sources 注册到 IOC 容器中 {@link SpringApplication#load(ApplicationContext, Object[])}
-         *
-         * 6. 刷新IOC 容器(这就是spring的流程了) {@link AbstractApplicationContext#refresh()}
-         *
-         * 7. web容器会在这里启动 {@link ServletWebServerApplicationContext#onRefresh()}
-         *
-         * 8. 创建web服务 {@link ServletWebServerApplicationContext#createWebServer()}
-         *      8.1 servletContext == null ，获取 getWebServerFactory 创建web容器
-         *      8.2 servletContext != null 就注册三大组件到web容器中
-         *           `getSelfInitializer().onStartup(servletContext);`
-         *           `getSelfInitializer()` 就是获取IOC 容器中 ServletContextInitializer 类型的bean，排序，回调方法注册组件
-         *      
-         *      注：servletContext 是通过 {@link ServletContextApplicationContextInitializer} 设置的
-         * 9. 完成bean工厂的初始化 {@link AbstractApplicationContext#finishBeanFactoryInitialization(ConfigurableListableBeanFactory)}
-         * 把配置类注册到ioc 容器中
-         * {@link SpringApplication#prepareContext(DefaultBootstrapContext, ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)}
-         * */
+ *
+ * Servlet3.0 支持注解开发。
+ *  1. 提供一个接口 {@link javax.servlet.ServletContainerInitializer#onStartup(java.util.Set, javax.servlet.ServletContext)}
+ *      web容器启动时会回调该方法，第一个参数就是要处理的类型 第二个参数就是web容器上下文
+ *  2. 提供一个注解 @HandlesTypes(WebApplicationInitializer.class)
+ *      就是 onStartup 第一个入参 会传入什么类型的类
+ *
+ * SpringBoot 独立web项目启动流程：
+ *
+ * 1. 当web容器启动时 会获取ClassLoader 里面所有 ServletContainerInitializer 类型的实例，回调 onStartup 方法 {@link javax.servlet.ServletContainerInitializer#onStartup(java.util.Set, javax.servlet.ServletContext)}
+ *  而依赖 spring-web-5.3.14.jar 中 有这个类 {@link SpringServletContainerInitializer} 实现ServletContainerInitializer接口，
+ *  所以web容器启动时会回调这个方法 {@link SpringServletContainerInitializer#onStartup(Set, ServletContext)}
+ *
+ * 2. {@link SpringServletContainerInitializer#onStartup(Set, ServletContext)} 的逻辑
+ *      2.1 判断 类不是接口 且 不是抽象类 且 是WebApplicationInitializer的子类 --> 存到集合中
+ *      2.2 使用 {@link AnnotationAwareOrderComparator} 对集合进行升序排序。可通过这三种方式设置排序值：Ordered接口、@Order、@Priority
+ *      2.3 遍历集合，回调 {@link WebApplicationInitializer#onStartup(ServletContext)}
+ *
+ * 3. SpringBoot 提供一个抽象类 SpringBootServletInitializer 实现了 WebApplicationInitializer 接口，所以我们继承抽象类，这样 web容器启动的时候就会执行，
+ *      然后就能完成 IOC 容器的初始化。
+ *      所以会回调这个方法 {@link SpringBootServletInitializer#onStartup(ServletContext)}
+ *
+ *      3.1 spring容器的配置类是啥？
+ *          1. 调用模板方法 {@link SpringBootServletInitializer#configure(SpringApplicationBuilder)}。子类可重写这个方法，往里面设置 sources
+ *          2. getAllSources 为空，会判断当前类是否有 @Configuration 注解，有就把当前类设置为 primarySources
+ *          3. getAllSources 为空 ,直接报错
+ *
+ *      3.2 创建 springboot 实例
+ *          {@link SpringBootServletInitializer#createSpringApplicationBuilder()} 实例化的关键点就是会加载 META-INF/spring.factories ,
+ *          解析key-value对作为 SpringBoot 实例的属性：bootstrapRegistryInitializers、initializers、listeners
+ *
+ *      3.3 给 SpringBoot 实例添加一个 initializer ，这个就是区别嵌入式web容器 和 独立web项目的关键初始化器
+ *          `builder.initializers(new ServletContextApplicationContextInitializer(servletContext));`
+ *
+ * 4. 启动 SpringBoot {@link SpringApplication#run(String...)}
+ *
+ * 5. 准备context {@link SpringApplication#prepareContext(DefaultBootstrapContext, ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)}
+ *      5.1 初始化IOC 容器 {@link SpringApplication#applyInitializers(ConfigurableApplicationContext)}
+ *          会回调这个方法设置属性 {@link ServletContextApplicationContextInitializer#initialize(ConfigurableWebApplicationContext)}
+ *          这里属性就是后面判断是 嵌入式web容器 还是 独立web项目的关键
+ *      5.2 关键点就是吧 sources 注册到 IOC 容器中 {@link SpringApplication#load(ApplicationContext, Object[])}
+ *
+ * 6. 刷新IOC 容器(这就是spring的流程了) {@link AbstractApplicationContext#refresh()}
+ *
+ * 7. web容器会在这里启动 {@link ServletWebServerApplicationContext#onRefresh()}
+ *
+ * 8. 创建web服务 {@link ServletWebServerApplicationContext#createWebServer()}
+ *      8.1 servletContext == null ，获取 getWebServerFactory 创建web容器
+ *      8.2 servletContext != null 就注册三大组件到web容器中
+ *           `getSelfInitializer().onStartup(servletContext);`
+ *           `getSelfInitializer()` 就是获取IOC 容器中 ServletContextInitializer 类型的bean，排序，回调方法注册组件
+ *
+ *      注：servletContext 是通过 {@link ServletContextApplicationContextInitializer} 设置的
+ * 9. 完成bean工厂的初始化 {@link AbstractApplicationContext#finishBeanFactoryInitialization(ConfigurableListableBeanFactory)}
+ * 把配置类注册到ioc 容器中
+ * {@link SpringApplication#prepareContext(DefaultBootstrapContext, ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)}
+ * */
 ```
 
 
@@ -1227,3 +1242,278 @@ public class Main {
     }
 }
 ```
+
+# Actuator
+
+Spring Boot Actuator 使用文档说明：https://docs.spring.io/spring-boot/docs/2.7.9/reference/html/actuator.html#actuator.endpoints
+
+Spring Boot Actuator Web API 快速预览：https://docs.spring.io/spring-boot/docs/2.7.9/actuator-api/htmlsingle/
+
+Spring Boot 包括许多附加功能，可帮助您在将应用程序推向生产环境时**监视**和**管理**应用程序。您可以选择使用**HTTP端点**或**JMX**来管理和监视应用程序。审计、运行状况和指标收集也可以自动应用于应用程序。
+
+`spring-boot-actuator` 模块提供了 Spring Boot 的所有生产就绪功能。要想启动这些功能，建议是添加 `spring-boot-starter-actuator` 的依赖项。原理就是其 `spring-boot-actuator-autoconfigure.jar!/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 文件中声明了自动配置类，所以启动SpringBoot就会生效
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+</dependencies>
+```
+
+> 简单翻译一下官方文档的一些内容，具体有啥用，看[下面的源码分析](#Endpoint 自动注入原理分析)就知道了
+
+默认情况下，启用除 `shutdown` 以外的所有端点。要配置端点的启用，请使用其 `management.endpoint.<id>.enabled` 属性。以下示例启用 `shutdown` 端点：
+
+```properties
+management.endpoint.shutdown.enabled=true
+```
+
+如果您希望端点启用是选择加入而不是选择退出，请将 `management.endpoints.enabled-by-default` 属性设置为 `false` ，并使用单个端点 `enabled` 属性重新选择加入。下面的示例启用 `info` 端点并禁用所有其他端点
+
+```properties
+management.endpoints.enabled-by-default=false
+management.endpoint.info.enabled=true
+```
+
+> 禁用的 Endpoint 将从应用程序上下文中完全删除。如果只想更改公开 Endpoint 的技术，请改用 `include` 和 `exclude` 属性。
+
+默认值
+
+| Property                                    | Default  |
+| :------------------------------------------ | :------- |
+| `management.endpoints.jmx.exposure.exclude` |          |
+| `management.endpoints.jmx.exposure.include` | `*`      |
+| `management.endpoints.web.exposure.exclude` |          |
+| `management.endpoints.web.exposure.include` | `health` |
+
+> `*` 可用于选择所有端点。例如，若要通过HTTP公开除 `env` 和 `beans` 端点之外的所有内容，请使用以下属性
+>
+> `*` 在YAML中有特殊的含义，因此如果要包括（或排除）所有端点，请务必加上引号。
+
+```properties
+management.endpoints.web.exposure.include=*
+management.endpoints.web.exposue.exclude=env,beans
+```
+
+| Operation          | HTTP method |
+| :----------------- | :---------- |
+| `@ReadOperation`   | `GET`       |
+| `@WriteOperation`  | `POST`      |
+| `@DeleteOperation` | `DELETE`    |
+
+
+
+## 示例代码
+
+[示例代码](../source-note-springboot/src/main/java/cn/haitaoss/actuator/Main.java)
+
+> 常用的属性key
+
+```properties
+# 是否启用发现页，指的是 访问 /actuator 是否显示可访问 endpoint 的信息
+management.endpoints.web.discovery.enabled=true
+# 配置端点web访问的前缀路径
+management.endpoints.web.basePath=/actuator
+# 配置web的方式，可以访问那些端点
+management.endpoints.web.exposure.include=*
+# 替换路径，将 end 映射成 newEnv
+management.endpoints.web.pathMapping.env=newEnv
+# 设置某个端点的缓存
+management.endpoint.env.cache.time-to-live=1
+# health 端点的配置
+management.endpoint.health.show-details=always
+management.endpoint.health.show-components=always
+management.health.defaults.enabled=true
+# 给 health 端点 设置 custom 分组，指定这个分组可以看到的 HealthIndicator 是那些
+management.endpoint.health.group.custom.include=haitao,db
+# 给 health 端点 设置 custom 分组，指定这个分组附加访问路径
+management.endpoint.health.group.custom.additionalPath=server:/health-custom
+```
+
+## Endpoint 自动注入原理分析
+
+`spring-boot-actuator-autoconfigure.jar!/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 的部分内容
+
+```properties
+org.springframework.boot.actuate.autoconfigure.endpoint.EndpointAutoConfiguration
+org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointAutoConfiguration
+org.springframework.boot.actuate.autoconfigure.web.server.ManagementContextAutoConfiguration
+org.springframework.boot.actuate.autoconfigure.env.EnvironmentEndpointAutoConfiguration
+```
+
+### EndpointAutoConfiguration
+
+```java
+/**
+ *
+ * {@link EndpointAutoConfiguration}
+ *  1. 添加 ParameterValueMapper bean
+ *      用来转换参数值的，在反射调用 @ReadOperation、@WriteOperation、@DeleteOperation 标注的方法的构造方法参数时
+ *      会使用这个来映射参数的值，生成参数列表。{@link ReflectiveOperationInvoker#invoke(InvocationContext)}
+ *
+ *  2. 添加 CachingOperationInvokerAdvisor bean
+ *      @ReadOperation、@WriteOperation、@DeleteOperation 的方法执行是通过 {@link OperationInvoker#invoke(InvocationContext)}
+ *      CachingOperationInvokerAdvisor 是用来对 OperationInvoker 进行装饰的，目的就是拦截方法的执行
+ *      存在缓存就返回缓存结果。
+ *
+ *      注：可以通过 management.endpoint.`endpointId.toLowerCaseString()`.cache.time-to-live 设置缓存的时间
+ **/
+```
+
+### WebEndpointAutoConfiguration
+
+```java
+/**
+ * {@link WebEndpointAutoConfiguration}
+ *  1. PathMapper
+ *      默认是返回这个实现类 MappingWebEndpointPathMapper，会使用Map映射属性的值 management.endpoints.web.pathMapping.endpointId = newEndpointId
+ *      PathMapper 会在下面的三个 EndpointDiscoverer 被用到，其作用是为了修改 endpoint 要映射的url
+ *
+ *  2. WebEndpointDiscoverer
+ *
+ *      关键是有这几个属性：
+ *          - ParameterValueMapper 反射回调方法时，会使用这个来对参数进行装换
+ *          - PathMapper 用来替换 endpoint 暴露的url
+ *          - org.springframework.boot.actuate.endpoint.invoke.OperationInvokerAdvisor 用来对调用@ReadOperation、@WriteOperation、@DeleteOperation方法的装饰类进行增强
+ *          - EndpointFilter<ExposableWebEndpoint> 过滤哪些 endpoint 应该暴露
+ *
+ *      是用来 找到标注了 @Endpoint 的bean 映射成 EndpointBean , 然后找到标注了 @EndpointExtension 的bean 映射成 ExtensionBean
+ *      将 extensionBean 关联给 EndpointBean，会执行 EndpointFilter<ExposableWebEndpoint> 判断是否应该暴露。然后会解析 EndpointBean
+ *      中的 @ReadOperation、@WriteOperation、@DeleteOperation 注解的方法装饰成 Operation 对象
+ *          将 Method 装饰成 DiscoveredOperationMethod
+ *          将 target、DiscoveredOperationMethod、parameterValueMapper 装饰成 OperationInvoker
+ *          使用 OperationInvokerAdvisor 对 OperationInvoker 进行装饰
+ *          最后 DiscoveredOperationMethod + OperationInvokerAdvisor 构造出 Operation
+ *
+ *  3. ControllerEndpointDiscoverer
+ *      关键是有这几个属性：
+ *          - PathMapper 用来替换 endpoint 暴露的url
+ *          - EndpointFilter<ExposableControllerEndpoint> 过滤哪些 endpoint 应该暴露
+ *
+ *      是用来找到标注了 @ControllerEndpoint、@RestControllerEndpoint 的bean 映射成 EndpointBean
+ *      然后找到标注了 @EndpointExtension 的bean 映射成 ExtensionBean
+ *      将 extensionBean 关联给 EndpointBean，会执行 EndpointFilter<ExposableControllerEndpoint> 判断是否应该暴露
+ *
+ *  4. ServletEndpointDiscoverer
+ *      关键是有这几个属性：
+ *          - PathMapper 用来替换 endpoint 暴露的url
+ *          - EndpointFilter<ExposableServletEndpoint> 过滤哪些 endpoint 应该暴露
+ *
+ *      是用来找到标注了 @ServletEndpoint 的bean 映射成 EndpointBean
+ *      然后找到标注了 @EndpointExtension 的bean 映射成 ExtensionBean
+ *      将 extensionBean 关联给 EndpointBean，会执行 EndpointFilter<ExposableServletEndpoint> 判断是否应该暴露
+ *
+ *  5. PathMappedEndpoints 是记录所有的 EndpointsSupplier 的，也就是聚合 WebEndpointDiscoverer、ControllerEndpointDiscoverer、ServletEndpointDiscoverer
+ *
+ **/
+```
+
+### ManagementContextAutoConfiguration
+
+```java
+@AutoConfiguration
+@EnableConfigurationProperties({WebEndpointProperties.class, ManagementServerProperties.class})
+public class ManagementContextAutoConfiguration {
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableManagementContext(ManagementContextType.SAME)
+    static class EnableSameManagementContextConfiguration {}
+
+}
+
+/**
+ * Tips：所以 @Import(ManagementContextConfigurationImportSelector.class) 就会被解析
+ *
+ * 而 ManagementContextConfigurationImportSelector 的作用就是
+ * 读取 META-INF/spring/org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration.imports 的内容
+ * 作为配置类导入到 BeanFactory 中
+ * */
+@Import(ManagementContextConfigurationImportSelector.class)
+@interface EnableManagementContext {}
+```
+
+`META-INF/spring/org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration.imports`部分内容
+
+```properties
+org.springframework.boot.actuate.autoconfigure.endpoint.web.ServletEndpointManagementContextConfiguration
+org.springframework.boot.actuate.autoconfigure.endpoint.web.servlet.WebMvcEndpointManagementContextConfiguration
+```
+
+### ServletEndpointManagementContextConfiguration
+
+```java
+/**
+ * {@link ServletEndpointManagementContextConfiguration}
+ *  会注册 ServletEndpointRegistrar bean
+ *  其作用是将 servletEndpointsSupplier.getEndpoints() 映射成 Servlet ,然后使用 ServletContext 进行注册
+ *
+ * */
+```
+
+### WebMvcEndpointManagementContextConfiguration
+
+```java
+/**
+ * {@link WebMvcEndpointManagementContextConfiguration}
+ *  会注册三个bean，这三个bean其实就是 HandlerMapping：
+ *  - WebMvcEndpointHandlerMapping
+ *      1. 拿到 @Endpoint、@ServletEndpoint、@ControllerEndpoint、@RestControllerEndpoint 的bean记录起来，目的是为了访问 /actuator 时能看到所有端点的信息
+ *      2. 处理有 @Endpoint 的bean，并会解析bean里面的 @ReadOperation 、@WriteOperation 、@DeleteOperation 方法，注册 Path和Method 的映射关系
+ *
+ *  - ControllerEndpointHandlerMapping
+ *      1. 处理 @ControllerEndpoint @RestControllerEndpoint 的bean，处理里面的 @RequestMapping , 注册 Path和Method 的映射关系
+ *
+ *  - AdditionalHealthEndpointPathsWebMvcHandlerMapping
+ *      若 group 设置了 additionalPath，那就注册映射关系
+ *      比如设置了属性：management.endpoint.health.group.custom.additionalPath=server:/health-custom
+ *      
+ *      注：health 端点逻辑没细看，大致思路是用到这几个配置类
+ *          {@link HealthEndpointAutoConfiguration}
+ *          {@link HealthEndpointConfiguration#healthEndpointGroups(ApplicationContext, HealthEndpointProperties)}
+ *          {@link AutoConfiguredHealthEndpointGroups#AutoConfiguredHealthEndpointGroups(ApplicationContext, HealthEndpointProperties)}
+ *
+ * */
+```
+
+### EnvironmentEndpointAutoConfiguration
+
+[@ConditionalOnAvailableEndpoint的原理](#@ConditionalOnAvailableEndpoint)
+
+```java
+@AutoConfiguration
+@ConditionalOnAvailableEndpoint(endpoint = EnvironmentEndpoint.class)
+@EnableConfigurationProperties(EnvironmentEndpointProperties.class)
+public class EnvironmentEndpointAutoConfiguration {
+
+   @Bean
+   @ConditionalOnMissingBean
+   public EnvironmentEndpoint environmentEndpoint() {
+      return endpoint;
+   }
+
+   @Bean
+   @ConditionalOnMissingBean
+   @ConditionalOnBean(EnvironmentEndpoint.class)
+   @ConditionalOnAvailableEndpoint(exposure = { EndpointExposure.WEB, EndpointExposure.CLOUD_FOUNDRY })
+   public EnvironmentEndpointWebExtension environmentEndpointWebExtension() {
+      return new EnvironmentEndpointWebExtension(environmentEndpoint);
+   }
+
+}
+```
+
+### Endpoint相关类图
+
+> ExposableEndpoint 是用来映射 @Endpoint 的
+
+![Endpoint](.springboot-source-note_imgs/Endpoint.png)
+
+> EndpointFilter 是用来过滤 ExposableEndpoint 是否应该暴露的
+
+![EndpointFilter](.springboot-source-note_imgs/EndpointFilter.png)
+
+> EndpointsSupplier 会使用 EndpointFilter 来过滤那些 ExposableEndpoint 应该返回
+
+![EndpointsSupplier](.springboot-source-note_imgs/EndpointsSupplier.png)

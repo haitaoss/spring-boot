@@ -16,17 +16,6 @@
 
 package org.springframework.boot.actuate.endpoint.invoker.cache;
 
-import java.security.Principal;
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
 import org.springframework.boot.actuate.endpoint.ApiVersion;
 import org.springframework.boot.actuate.endpoint.InvocationContext;
 import org.springframework.boot.actuate.endpoint.SecurityContext;
@@ -38,6 +27,16 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.ConcurrentReferenceHashMap;
 import org.springframework.util.ObjectUtils;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.security.Principal;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * An {@link OperationInvoker} that caches the response of an operation with a
@@ -88,13 +87,19 @@ public class CachingOperationInvoker implements OperationInvoker {
 		}
 		long accessTime = System.currentTimeMillis();
 		if (this.cachedResponses.size() > CACHE_CLEANUP_THRESHOLD) {
+			// 清空缓存
 			cleanExpiredCachedResponses(accessTime);
 		}
+		// 生成key
 		CacheKey cacheKey = getCacheKey(context);
 		CachedResponse cached = this.cachedResponses.get(cacheKey);
+		/**
+		 * 缓存为空 或者 缓存过了 就执行方法
+		 * */
 		if (cached == null || cached.isStale(accessTime, this.timeToLive)) {
 			Object response = this.invoker.invoke(context);
 			cached = createCachedResponse(response, accessTime);
+			// 存入缓存
 			this.cachedResponses.put(cacheKey, cached);
 		}
 		return cached.getResponse();

@@ -77,6 +77,7 @@ public class ControllerEndpointHandlerMapping extends RequestMappingHandlerMappi
 
 	@Override
 	protected void initHandlerMethods() {
+		// 找到里面的 @RequestMapping 然后注册映射关系
 		this.handlers.keySet().forEach(this::detectHandlerMethods);
 	}
 

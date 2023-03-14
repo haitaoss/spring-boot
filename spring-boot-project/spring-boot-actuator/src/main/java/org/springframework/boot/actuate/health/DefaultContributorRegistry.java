@@ -54,6 +54,9 @@ class DefaultContributorRegistry<C> implements ContributorRegistry<C> {
 		Assert.notNull(nameFactory, "NameFactory must not be null");
 		this.nameFactory = nameFactory;
 		Map<String, C> namedContributors = new LinkedHashMap<>();
+		/**
+		 * {@link HealthContributorNameFactory#apply(String)} 会对 name 进行后缀移除处理
+		 * */
 		contributors.forEach((name, contributor) -> namedContributors.put(nameFactory.apply(name), contributor));
 		this.contributors = Collections.unmodifiableMap(namedContributors);
 	}

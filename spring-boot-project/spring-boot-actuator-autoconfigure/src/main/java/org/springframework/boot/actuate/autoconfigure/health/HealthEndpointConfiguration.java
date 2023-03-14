@@ -24,22 +24,7 @@ import java.util.Map;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
-import org.springframework.boot.actuate.health.CompositeHealthContributor;
-import org.springframework.boot.actuate.health.CompositeReactiveHealthContributor;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.HealthContributor;
-import org.springframework.boot.actuate.health.HealthContributorRegistry;
-import org.springframework.boot.actuate.health.HealthEndpoint;
-import org.springframework.boot.actuate.health.HealthEndpointGroups;
-import org.springframework.boot.actuate.health.HealthEndpointGroupsPostProcessor;
-import org.springframework.boot.actuate.health.HealthIndicator;
-import org.springframework.boot.actuate.health.HttpCodeStatusMapper;
-import org.springframework.boot.actuate.health.NamedContributor;
-import org.springframework.boot.actuate.health.ReactiveHealthContributor;
-import org.springframework.boot.actuate.health.ReactiveHealthIndicator;
-import org.springframework.boot.actuate.health.SimpleHttpCodeStatusMapper;
-import org.springframework.boot.actuate.health.SimpleStatusAggregator;
-import org.springframework.boot.actuate.health.StatusAggregator;
+import org.springframework.boot.actuate.health.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -82,6 +67,10 @@ class HealthEndpointConfiguration {
 		if (ClassUtils.isPresent("reactor.core.publisher.Flux", applicationContext.getClassLoader())) {
 			healthContributors.putAll(new AdaptedReactiveHealthContributors(reactiveHealthContributors).get());
 		}
+		/**
+		 * 记录下来有 healthContributors。在实例化是会对 name 进行后缀移除处理
+		 * 		{@link HealthContributorNameFactory#apply(String)}
+		 * */
 		return new AutoConfiguredHealthContributorRegistry(healthContributors, groups.getNames());
 	}
 
@@ -89,6 +78,7 @@ class HealthEndpointConfiguration {
 	@ConditionalOnMissingBean
 	HealthEndpoint healthEndpoint(HealthContributorRegistry registry, HealthEndpointGroups groups,
 			HealthEndpointProperties properties) {
+		// 注册 端点
 		return new HealthEndpoint(registry, groups, properties.getLogging().getSlowIndicatorThreshold());
 	}
 
