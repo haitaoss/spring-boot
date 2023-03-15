@@ -1386,6 +1386,7 @@ org.springframework.boot.actuate.autoconfigure.env.EnvironmentEndpointAutoConfig
  *          将 target、DiscoveredOperationMethod、parameterValueMapper 装饰成 OperationInvoker
  *          使用 OperationInvokerAdvisor 对 OperationInvoker 进行装饰
  *          最后 DiscoveredOperationMethod + OperationInvokerAdvisor 构造出 Operation
+ *      最后会将 EndpointBean 装饰成 ExposableEndpoint 再返回          
  *
  *  3. ControllerEndpointDiscoverer
  *      关键是有这几个属性：
@@ -1393,8 +1394,8 @@ org.springframework.boot.actuate.autoconfigure.env.EnvironmentEndpointAutoConfig
  *          - EndpointFilter<ExposableControllerEndpoint> 过滤哪些 endpoint 应该暴露
  *
  *      是用来找到标注了 @ControllerEndpoint、@RestControllerEndpoint 的bean 映射成 EndpointBean
- *      然后找到标注了 @EndpointExtension 的bean 映射成 ExtensionBean
- *      将 extensionBean 关联给 EndpointBean，会执行 EndpointFilter<ExposableControllerEndpoint> 判断是否应该暴露
+ *      会执行 EndpointFilter<ExposableControllerEndpoint> 判断是否应该暴露
+ *      最后会将 EndpointBean 装饰成 ExposableEndpoint 再返回
  *
  *  4. ServletEndpointDiscoverer
  *      关键是有这几个属性：
@@ -1402,8 +1403,8 @@ org.springframework.boot.actuate.autoconfigure.env.EnvironmentEndpointAutoConfig
  *          - EndpointFilter<ExposableServletEndpoint> 过滤哪些 endpoint 应该暴露
  *
  *      是用来找到标注了 @ServletEndpoint 的bean 映射成 EndpointBean
- *      然后找到标注了 @EndpointExtension 的bean 映射成 ExtensionBean
- *      将 extensionBean 关联给 EndpointBean，会执行 EndpointFilter<ExposableServletEndpoint> 判断是否应该暴露
+ *      会执行 EndpointFilter<ExposableServletEndpoint> 判断是否应该暴露
+ *      最后会将 EndpointBean 装饰成 ExposableEndpoint 再返回
  *
  *  5. PathMappedEndpoints 是记录所有的 EndpointsSupplier 的，也就是聚合 WebEndpointDiscoverer、ControllerEndpointDiscoverer、ServletEndpointDiscoverer
  *
