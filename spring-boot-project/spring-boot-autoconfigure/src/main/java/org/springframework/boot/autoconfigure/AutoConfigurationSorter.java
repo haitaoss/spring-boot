@@ -16,20 +16,13 @@
 
 package org.springframework.boot.autoconfigure;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.util.Assert;
+
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Sort {@link EnableAutoConfiguration auto-configuration} classes into priority order by
@@ -75,8 +68,11 @@ class AutoConfigurationSorter {
 	private List<String> sortByAnnotation(AutoConfigurationClasses classes, List<String> classNames) {
 		List<String> toSort = new ArrayList<>(classNames);
 		toSort.addAll(classes.getAllNames());
+		// 存储排序结果
 		Set<String> sorted = new LinkedHashSet<>();
+		// 记录正在排序的类 反正出现死循环
 		Set<String> processing = new LinkedHashSet<>();
+		// 每次都从 toSort 移出元素 进行排序，所以空了就说明排序结束了
 		while (!toSort.isEmpty()) {
 			doSortByAfterAnnotation(classes, toSort, sorted, processing, null);
 		}
@@ -90,13 +86,28 @@ class AutoConfigurationSorter {
 			current = toSort.remove(0);
 		}
 		processing.add(current);
+		/**
+		 * 获取 current 应该放在 Xx类 的后面，对这些先排序，他们有序了，current 再插入就能保证 current 有序了
+		 *
+		 * 比如 会得到 A 和 Other
+		 * @AutoConfigureAfter(A.class)
+		 * class Current{}
+		 *
+		 * @AutoConfigureBefore(Current.class)
+		 * class Other{}
+		 * */
 		for (String after : classes.getClassesRequestedAfter(current)) {
+			// 若出现循环就报错
 			checkForCycles(processing, current, after);
+			// after 还没排序过，那就递归对其进行排序
 			if (!sorted.contains(after) && toSort.contains(after)) {
+				// 递归进行排序
 				doSortByAfterAnnotation(classes, toSort, sorted, processing, after);
 			}
 		}
+		// 移出标记
 		processing.remove(current);
+		// 直接插入，因为 sorted 已经插入了应该放在 current 之前的元素，所以这里直接放入就能保证 current 是有序的
 		sorted.add(current);
 	}
 
@@ -142,9 +153,17 @@ class AutoConfigurationSorter {
 			return this.classes.get(className);
 		}
 
+		/**
+		 * 获取应该放在 className 之前的配置类。根据 @AutoConfigureAfter、@AutoConfigureBefore 可以知道
+		 * @param className
+		 * @return
+		 */
 		Set<String> getClassesRequestedAfter(String className) {
+			// 获取 @AutoConfigureAfter 的值。
 			Set<String> classesRequestedAfter = new LinkedHashSet<>(get(className).getAfter());
+			// 遍历所有的配置类
 			this.classes.forEach((name, autoConfigurationClass) -> {
+				// 配置类的 @AutoConfigureBefore 的值有 className，说明该配置类应该放在 className 的前面
 				if (autoConfigurationClass.getBefore().contains(className)) {
 					classesRequestedAfter.add(name);
 				}

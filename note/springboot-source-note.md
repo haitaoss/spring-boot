@@ -94,6 +94,42 @@ public @interface EnableAutoConfiguration {
  * */
 ```
 
+```java
+// @AutoConfigureBefore @AutoConfigureAfter 的排序原理
+private void doSortByAfterAnnotation(...) {
+		// 第一个排序的元素
+    if (current == null) {
+			current = toSort.remove(0);
+		}
+		processing.add(current);
+		/**
+		 * 获取 current 应该放在 Xx类 的后面，对这些先排序，他们有序了，current 再插入就能保证 current 有序了
+		 *
+		 * 比如 会得到 A 和 Other
+		 * @AutoConfigureAfter(A.class)
+		 * class Current{}
+		 *
+		 * @AutoConfigureBefore(Current.class)
+		 * class Other{}
+		 * */
+		for (String after : classes.getClassesRequestedAfter(current)) {
+			// 若出现循环就报错
+			checkForCycles(processing, current, after);
+			// after 还没排序过，那就递归对其进行排序
+			if (!sorted.contains(after) && toSort.contains(after)) {
+        // 递归进行排序
+				doSortByAfterAnnotation(classes, toSort, sorted, processing, after);
+			}
+		}
+		// 移出标记
+		processing.remove(current);
+		// 直接插入，因为 sorted 已经插入了应该放在 current 之前的元素，所以这里直接放入就能保证 current 是有序的
+		sorted.add(current);
+	}
+```
+
+
+
 # SpringBoot 生命周期
 
 ```java
