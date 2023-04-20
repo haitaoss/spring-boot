@@ -61,6 +61,9 @@ public class HttpHandlerAutoConfiguration {
 
 		@Bean
 		public HttpHandler httpHandler(ObjectProvider<WebFluxProperties> propsProvider) {
+			/**
+			 * 依赖 WebHandler 然后装饰成 HttpHandler
+			 * */
 			HttpHandler httpHandler = WebHttpHandlerBuilder.applicationContext(this.applicationContext).build();
 			WebFluxProperties properties = propsProvider.getIfAvailable();
 			if (properties != null && StringUtils.hasText(properties.getBasePath())) {

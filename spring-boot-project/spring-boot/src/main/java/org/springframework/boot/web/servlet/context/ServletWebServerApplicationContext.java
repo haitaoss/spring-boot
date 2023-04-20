@@ -184,7 +184,6 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 			createWebServer.tag("factory", factory.getClass().toString());
 			/**
 			 * 生成 webServer 然后启动服务
-			 *
 			 * */
 			this.webServer = factory.getWebServer(getSelfInitializer());
 			createWebServer.end();

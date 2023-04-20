@@ -90,10 +90,23 @@ public class ReactiveWebServerApplicationContext extends GenericReactiveWebAppli
 		if (serverManager == null) {
 			StartupStep createWebServer = this.getApplicationStartup().start("spring.boot.webserver.create");
 			String webServerFactoryBeanName = getWebServerFactoryBeanName();
+			// 拿到 ReactiveWebServerFactory
 			ReactiveWebServerFactory webServerFactory = getWebServerFactory(webServerFactoryBeanName);
 			createWebServer.tag("factory", webServerFactory.getClass().toString());
 			boolean lazyInit = getBeanFactory().getBeanDefinition(webServerFactoryBeanName).isLazyInit();
+			/**
+			 *
+			 * 1. 获取容器中 HttpHandler 类型的bean
+			 * 2. 使用工厂方法创建一个 WebServer，需要 HttpHandler 作为参数
+			 * 		{@link ReactiveWebServerFactory#getWebServer(HttpHandler)}
+			 *
+			 * 比如 Tomcat 会在这里 注册 servlet 启动 tomcat
+			 * */
 			this.serverManager = new WebServerManager(this, webServerFactory, this::getHttpHandler, lazyInit);
+			/**
+			 * 这两个都是 SmartLifecycle 这种类型的bean，会在容器refresh后会被回调
+			 * 		{@link AbstractApplicationContext#finishRefresh()}
+			 * */
 			getBeanFactory().registerSingleton("webServerGracefulShutdown",
 					new WebServerGracefulShutdownLifecycle(this.serverManager.getWebServer()));
 			getBeanFactory().registerSingleton("webServerStartStop",

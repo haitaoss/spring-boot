@@ -134,7 +134,9 @@ public class TomcatReactiveWebServerFactory extends AbstractReactiveWebServerFac
 		for (Connector additionalConnector : this.additionalTomcatConnectors) {
 			tomcat.getService().addConnector(additionalConnector);
 		}
+		// 构造出 TomcatHttpHandlerAdapter，其实就是 Servlet
 		TomcatHttpHandlerAdapter servlet = new TomcatHttpHandlerAdapter(httpHandler);
+		// 将 TomcatHttpHandlerAdapter 注册到 ServletContext 中
 		prepareContext(tomcat.getHost(), servlet);
 		return getTomcatWebServer(tomcat);
 	}

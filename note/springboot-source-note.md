@@ -1020,6 +1020,41 @@ class MyServlet extends HttpServlet {
          * */
 ```
 
+## Spring WebFlux 自动装配
+
+ `spring-boot-autoconfigure.jar!/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`的部分内容
+
+```properties
+org.springframework.boot.autoconfigure.web.reactive.HttpHandlerAutoConfiguration
+org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfiguration
+```
+
+```java
+/**
+ *
+ * HttpHandlerAutoConfiguration
+ *      注册 HttpHandler，其依赖 WebHandler
+ *
+ * WebFluxAutoConfiguration
+ *      最主要是有这个 @Import({ EnableWebFluxConfiguration.class })
+ *      而 EnableWebFluxConfiguration 会注册 DispatcherHandler ，其是 WebHandler 类型的。DispatcherHandler 和 DispatcherServlet 的作用是类似的。
+ *
+ * ReactiveWebServerApplicationContext 的 onRefresh 方法
+ * {@link ReactiveWebServerApplicationContext#onRefresh()}
+ * {@link ReactiveWebServerApplicationContext#createWebServer()}
+ *      1. 获取容器中 HttpHandler 类型的bean
+ *      2. 使用工厂方法创建一个 WebServer，会需要 HttpHandler 作为参数
+ *
+ *      比如 Tomcat ：
+ *          // 使用 httpHandler 构造出 TomcatHttpHandlerAdapter，其实就是 Servlet
+ *          TomcatHttpHandlerAdapter servlet = new TomcatHttpHandlerAdapter(httpHandler);
+ *          // 将 TomcatHttpHandlerAdapter 注册到 ServletContext 中
+ *          servletContext.addServlet(servletName, servlet);
+ *          
+ *      大致的调用链路：客户端发送请求 -> TomcatServer -> TomcatHttpHandlerAdapter -> HttpHandler -> WebHandler        
+ * */
+```
+
 # Web容器启动流程
 
 > Web容器的创建是在 onRefresh() 里面执行的，所以比单例bean的初始化 还要早，
@@ -1554,3 +1589,6 @@ public class EnvironmentEndpointAutoConfiguration {
 > EndpointsSupplier 会使用 EndpointFilter 来过滤那些 ExposableEndpoint 应该返回
 
 ![EndpointsSupplier](.springboot-source-note_imgs/EndpointsSupplier.png)
+
+
+
