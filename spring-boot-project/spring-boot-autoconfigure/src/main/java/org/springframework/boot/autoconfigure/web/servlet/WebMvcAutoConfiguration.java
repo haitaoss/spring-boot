@@ -24,6 +24,8 @@ import java.util.function.Consumer;
 
 import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -90,6 +92,7 @@ import org.springframework.web.context.support.ServletContextResource;
 import org.springframework.web.filter.FormContentFilter;
 import org.springframework.web.filter.HiddenHttpMethodFilter;
 import org.springframework.web.filter.RequestContextFilter;
+import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.FlashMapManager;
 import org.springframework.web.servlet.HandlerExceptionResolver;
@@ -113,10 +116,7 @@ import org.springframework.web.servlet.i18n.FixedLocaleResolver;
 import org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-import org.springframework.web.servlet.resource.EncodedResourceResolver;
-import org.springframework.web.servlet.resource.ResourceResolver;
-import org.springframework.web.servlet.resource.ResourceUrlProvider;
-import org.springframework.web.servlet.resource.VersionResourceResolver;
+import org.springframework.web.servlet.resource.*;
 import org.springframework.web.servlet.view.BeanNameViewResolver;
 import org.springframework.web.servlet.view.ContentNegotiatingViewResolver;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
@@ -326,14 +326,31 @@ public class WebMvcAutoConfiguration {
 			ApplicationConversionService.addBeans(registry, this.beanFactory);
 		}
 
+		/**
+		 * url映射成资源文件的 Handler, 使用代码在这里
+		 * 	{@link WebMvcConfigurationSupport#resourceHandlerMapping(ContentNegotiationManager, FormattingConversionService, ResourceUrlProvider)}
+		 *
+		 * @param registry
+		 */
 		@Override
 		public void addResourceHandlers(ResourceHandlerRegistry registry) {
 			if (!this.resourceProperties.isAddMappings()) {
 				logger.debug("Default resource handling disabled");
 				return;
 			}
+			/**
+			 * ResourceHandler 的内容会注册到 SimpleUrlHandlerMapping 中，匹配request后，
+			 * 最终会由 ResourceHttpRequestHandler 处理请求，其逻辑就是找到资源文件，然后写到response中
+			 * 		{@link ResourceHttpRequestHandler#handleRequest(HttpServletRequest, HttpServletResponse)}
+			 * */
 			addResourceHandler(registry, "/webjars/**", "classpath:/META-INF/resources/webjars/");
+			/**
+			 * 映射路径是 /**
+			 *
+			 * Tips：RequestMappingHandlerMapping 会比 SimpleUrlHandlerMapping 优先匹配，所以映射路径 /** 用作兜底映射策略
+			 * */
 			addResourceHandler(registry, this.mvcProperties.getStaticPathPattern(), (registration) -> {
+				// "classpath:/META-INF/resources/","classpath:/resources/", "classpath:/static/", "classpath:/public/"
 				registration.addResourceLocations(this.resourceProperties.getStaticLocations());
 				if (this.servletContext != null) {
 					ServletContextResource resource = new ServletContextResource(this.servletContext, SERVLET_LOCATION);
