@@ -16,14 +16,13 @@
 
 package org.springframework.boot.actuate.autoconfigure.web.server;
 
-import java.util.List;
-
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.LazyInitializationBeanFactoryPostProcessor;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.actuate.autoconfigure.web.ManagementContextFactory;
 import org.springframework.boot.actuate.autoconfigure.web.ManagementContextType;
+import org.springframework.boot.actuate.autoconfigure.web.servlet.WebMvcEndpointChildContextConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -32,6 +31,7 @@ import org.springframework.boot.context.event.ApplicationFailedEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.context.ConfigurableWebServerApplicationContext;
 import org.springframework.boot.web.context.WebServerInitializedEvent;
+import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
@@ -45,6 +45,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.util.Assert;
+
+import java.util.List;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for the management context. If the
@@ -61,6 +63,10 @@ import org.springframework.util.Assert;
 @EnableConfigurationProperties({ WebEndpointProperties.class, ManagementServerProperties.class })
 public class ManagementContextAutoConfiguration {
 
+	/**
+	 * @ConditionalOnManagementPort(ManagementPortType.SAME) 的作用是校验
+	 * 		management.server.port == server.port 就满足
+	 */
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnManagementPort(ManagementPortType.SAME)
 	static class SameManagementContextConfiguration implements SmartInitializingSingleton {
@@ -111,6 +117,10 @@ public class ManagementContextAutoConfiguration {
 			});
 		}
 
+		/**
+		 * @EnableManagementContext 这个很重要，会读取 META-INF/spring.factories 和 spring/`ManagementContextConfiguration.class.getName()`.imports 中的内容
+		 * 注册到 BeanFactory 中
+		 */
 		@Configuration(proxyBeanMethods = false)
 		@EnableManagementContext(ManagementContextType.SAME)
 		static class EnableSameManagementContextConfiguration {
@@ -119,6 +129,11 @@ public class ManagementContextAutoConfiguration {
 
 	}
 
+	/**
+	 * @ConditionalOnManagementPort(ManagementPortType.DIFFERENT) 的作用是校验 management.server.port != server.port 就满足
+	 *
+	 * 其实就是又启动一个 WebServer
+	 */
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnManagementPort(ManagementPortType.DIFFERENT)
 	static class DifferentManagementContextConfiguration implements ApplicationListener<WebServerInitializedEvent> {
@@ -135,7 +150,18 @@ public class ManagementContextAutoConfiguration {
 
 		@Override
 		public void onApplicationEvent(WebServerInitializedEvent event) {
+			/**
+			 * Web类型的IOC容器执行 onRefresh 会注册一个 WebServerStartStopLifecycle，这个 Lifecycle 会发布 WebServerInitializedEvent 事件
+			 * {@link ServletWebServerApplicationContext#createWebServer()}
+			 * */
 			if (event.getApplicationContext().equals(this.applicationContext)) {
+				/**
+				 * 创建 ConfigurableWebServerApplicationContext
+				 *
+				 * 1. applicationContext 会设置为 managementContext 的 父容器
+				 * 2. EnableChildManagementContextConfiguration 会读取 META-INF/spring.factories 和 spring/`ManagementContextConfiguration.class.getName()`.imports 中的内容
+				 *		注：文件中定义了这个 {@link WebMvcEndpointChildContextConfiguration} 其作用是启用 SpringMVC
+				 * */
 				ConfigurableWebServerApplicationContext managementContext = this.managementContextFactory
 						.createManagementContext(this.applicationContext,
 								EnableChildManagementContextConfiguration.class,
@@ -145,8 +171,11 @@ public class ManagementContextAutoConfiguration {
 				}
 				managementContext.setServerNamespace("management");
 				managementContext.setId(this.applicationContext.getId() + ":management");
+				// 设置 applicationContext 的 ClassLoader 给 managementContext
 				setClassLoaderIfPossible(managementContext);
+				// 给 applicationContext 注册 CloseManagementContextListener，当 applicationContext close 时 关闭 managementContext
 				CloseManagementContextListener.addIfPossible(this.applicationContext, managementContext);
+				// refresh 也就是会又启动一个 webServer
 				managementContext.refresh();
 			}
 		}

@@ -16,11 +16,6 @@
 
 package org.springframework.boot.actuate.autoconfigure.web.servlet;
 
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.springframework.beans.FatalBeanException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -37,6 +32,11 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.util.ClassUtils;
+
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A {@link ManagementContextFactory} for servlet-based web applications.
@@ -58,8 +58,10 @@ class ServletManagementContextFactory implements ManagementContextFactory {
 		child.setEnvironment(childEnvironment);
 		child.setParent(parent);
 		List<Class<?>> combinedClasses = new ArrayList<>(Arrays.asList(configClasses));
+		// ServletWebServerFactoryAutoConfiguration 是用来实现 WebServerFactory 的自动注入的
 		combinedClasses.add(ServletWebServerFactoryAutoConfiguration.class);
 		child.register(ClassUtils.toClassArray(combinedClasses));
+		// 获取父容器的 ServletWebServerFactory 注册到 child 中
 		registerServletWebServerFactory(parent, child);
 		return child;
 	}
@@ -70,6 +72,7 @@ class ServletManagementContextFactory implements ManagementContextFactory {
 			ConfigurableListableBeanFactory beanFactory = childContext.getBeanFactory();
 			if (beanFactory instanceof BeanDefinitionRegistry) {
 				BeanDefinitionRegistry registry = (BeanDefinitionRegistry) beanFactory;
+				// 获取父容器的 ServletWebServerFactory
 				registry.registerBeanDefinition("ServletWebServerFactory",
 						new RootBeanDefinition(determineServletWebServerFactoryClass(parent)));
 			}

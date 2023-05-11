@@ -16,8 +16,6 @@
 
 package org.springframework.boot.actuate.autoconfigure.web.server;
 
-import java.util.Map;
-
 import org.springframework.boot.autoconfigure.condition.ConditionMessage;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
@@ -27,6 +25,8 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.util.ClassUtils;
 import org.springframework.web.context.WebApplicationContext;
+
+import java.util.Map;
 
 /**
  * {@link SpringBootCondition} that matches when the management server is running on a
@@ -41,12 +41,17 @@ class OnManagementPortCondition extends SpringBootCondition {
 	@Override
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
 		ConditionMessage.Builder message = ConditionMessage.forCondition("Management Port");
+		// 不是 web 环境就是不匹配
 		if (!isWebApplicationContext(context)) {
 			return ConditionOutcome.noMatch(message.because("non web application context"));
 		}
 		Map<String, Object> attributes = metadata.getAnnotationAttributes(ConditionalOnManagementPort.class.getName());
 		ManagementPortType requiredType = (ManagementPortType) attributes.get("value");
+		/**
+		 * management.server.port == server.port 那就是 SAME 否则是 DIFFERENT
+		 * */
 		ManagementPortType actualType = ManagementPortType.get(context.getEnvironment());
+		// 值 与 @ConditionalOnManagementPort 的值一样就是批评
 		if (actualType == requiredType) {
 			return ConditionOutcome
 					.match(message.because("actual port type (" + actualType + ") matched required type"));
