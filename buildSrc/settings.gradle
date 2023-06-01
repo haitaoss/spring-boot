@@ -1,10 +1,47 @@
 pluginManagement {
-	repositories {
-		maven { name "Alibaba" ; url 'https://maven.aliyun.com/repository/public' }
-		maven { name "Bstek" ; url 'https://nexus.bsdn.org/content/groups/public/' }
-		maven { name "M2" ; url 'https://plugins.gradle.org/m2/' }
-		maven { url 'https://maven.aliyun.com/nexus/content/repositories/jcenter' }
-		mavenCentral()
-		gradlePluginPortal()
-	}
+    repositories {
+        mavenLocal()
+        // 从 https://developer.aliyun.com/mvn/guide 找的
+        maven { "central"; url "https://maven.aliyun.com/repository/central"}
+        maven { "jcenter"; url "https://maven.aliyun.com/nexus/content/repositories/jcenter"}
+        maven { "public"; url "https://maven.aliyun.com/repository/public"}
+        maven { "google"; url "https://maven.aliyun.com/repository/google"}
+        maven { "gradle-plugin"; url "https://maven.aliyun.com/repository/gradle-plugin"}
+        maven { "spring"; url "https://maven.aliyun.com/repository/spring"}
+        maven { "spring-plugin"; url "https://maven.aliyun.com/repository/spring-plugin"}
+        maven { "grails-core"; url "https://maven.aliyun.com/repository/grails-core"}
+        maven { "apache snapshots"; url "https://maven.aliyun.com/repository/apache-snapshots"}
+
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "org.jetbrains.kotlin.jvm") {
+                useVersion "${kotlinVersion}"
+            }
+            if (requested.id.id == "org.jetbrains.kotlin.plugin.spring") {
+                useVersion "${kotlinVersion}"
+            }
+        }
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenLocal()
+        // 从 https://developer.aliyun.com/mvn/guide 找的
+        maven { "central"; url "https://maven.aliyun.com/repository/central"}
+        maven { "jcenter"; url "https://maven.aliyun.com/nexus/content/repositories/jcenter"}
+        maven { "public"; url "https://maven.aliyun.com/repository/public"}
+        maven { "google"; url "https://maven.aliyun.com/repository/google"}
+        maven { "gradle-plugin"; url "https://maven.aliyun.com/repository/gradle-plugin"}
+        maven { "spring"; url "https://maven.aliyun.com/repository/spring"}
+        maven { "spring-plugin"; url "https://maven.aliyun.com/repository/spring-plugin"}
+        maven { "grails-core"; url "https://maven.aliyun.com/repository/grails-core"}
+        maven { "apache snapshots"; url "https://maven.aliyun.com/repository/apache-snapshots"}
+
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }

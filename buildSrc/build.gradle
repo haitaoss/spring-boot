@@ -1,16 +1,7 @@
 plugins {
 	id "java-gradle-plugin"
-	//id "io.spring.javaformat" version "${javaFormatVersion}"
+	id "io.spring.javaformat" version "${javaFormatVersion}"
 	id "checkstyle"
-}
-
-repositories {
-	maven { name "Alibaba" ; url 'https://maven.aliyun.com/repository/public' }
-	maven { name "Bstek" ; url 'https://nexus.bsdn.org/content/groups/public/' }
-	maven { name "M2" ; url 'https://plugins.gradle.org/m2/' }
-	maven { url 'https://maven.aliyun.com/nexus/content/repositories/jcenter' }
-	mavenCentral()
-	gradlePluginPortal()
 }
 
 sourceCompatibility = 1.8

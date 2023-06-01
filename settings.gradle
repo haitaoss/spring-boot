@@ -1,15 +1,19 @@
 pluginManagement {
 	repositories {
-		maven { name "Alibaba" ; url 'https://maven.aliyun.com/repository/public' }
-		maven { name "Bstek" ; url 'https://nexus.bsdn.org/content/groups/public/' }
-		maven { name "M2" ; url 'https://plugins.gradle.org/m2/' }
-		maven { url 'https://maven.aliyun.com/nexus/content/repositories/jcenter' }
-		gradlePluginPortal()
-		maven { url "https://repo.spring.io/plugins-release" }
+		mavenLocal()
+		// 从 https://developer.aliyun.com/mvn/guide 找的
+		maven { "central"; url "https://maven.aliyun.com/repository/central"}
+		maven { "jcenter"; url "https://maven.aliyun.com/nexus/content/repositories/jcenter"}
+		maven { "public"; url "https://maven.aliyun.com/repository/public"}
+		maven { "google"; url "https://maven.aliyun.com/repository/google"}
+		maven { "gradle-plugin"; url "https://maven.aliyun.com/repository/gradle-plugin"}
+		maven { "spring"; url "https://maven.aliyun.com/repository/spring"}
+		maven { "spring-plugin"; url "https://maven.aliyun.com/repository/spring-plugin"}
+		maven { "grails-core"; url "https://maven.aliyun.com/repository/grails-core"}
+		maven { "apache snapshots"; url "https://maven.aliyun.com/repository/apache-snapshots"}
+
 		mavenCentral()
-		if (version.endsWith('-SNAPSHOT')) {
-			maven { url "https://repo.spring.io/snapshot" }
-		}
+		gradlePluginPortal()
 	}
 	resolutionStrategy {
 		eachPlugin {
@@ -25,7 +29,26 @@ pluginManagement {
 
 plugins {
 	id "com.gradle.enterprise" version "3.12.1"
-	//id "io.spring.ge.conventions" version "0.0.13"
+	id "io.spring.ge.conventions" version "0.0.13"
+}
+
+dependencyResolutionManagement {
+	repositories {
+		mavenLocal()
+		// 从 https://developer.aliyun.com/mvn/guide 找的
+		maven { "central"; url "https://maven.aliyun.com/repository/central"}
+		maven { "jcenter"; url "https://maven.aliyun.com/nexus/content/repositories/jcenter"}
+		maven { "public"; url "https://maven.aliyun.com/repository/public"}
+		maven { "google"; url "https://maven.aliyun.com/repository/google"}
+		maven { "gradle-plugin"; url "https://maven.aliyun.com/repository/gradle-plugin"}
+		maven { "spring"; url "https://maven.aliyun.com/repository/spring"}
+		maven { "spring-plugin"; url "https://maven.aliyun.com/repository/spring-plugin"}
+		maven { "grails-core"; url "https://maven.aliyun.com/repository/grails-core"}
+		maven { "apache snapshots"; url "https://maven.aliyun.com/repository/apache-snapshots"}
+
+		mavenCentral()
+		gradlePluginPortal()
+	}
 }
 
 rootProject.name="spring-boot-build"
@@ -69,7 +92,7 @@ include "spring-boot-project:spring-boot-actuator"
 include "spring-boot-project:spring-boot-actuator-autoconfigure"
 include "spring-boot-project:spring-boot-cli"
 include "spring-boot-project:spring-boot-devtools"
-//include "spring-boot-project:spring-boot-docs"
+include "spring-boot-project:spring-boot-docs"
 include "spring-boot-project:spring-boot-properties-migrator"
 include "spring-boot-project:spring-boot-test"
 include "spring-boot-project:spring-boot-test-autoconfigure"
@@ -88,3 +111,13 @@ file("${rootDir}/spring-boot-tests/spring-boot-smoke-tests").eachDirMatch(~/spri
 	include "spring-boot-tests:spring-boot-smoke-tests:${it.name}"
 }
 include 'source-note-springboot'
+
+gradle.startParameter.excludedTaskNames.addAll(['checkFormatMain',
+												'checkFormatTest',
+												'checkstyleMain',
+												'checkstyleTest',
+												'asciidoctor',
+												'asciidoctorPdf',
+												'publishMavenPublicationToProjectRepository',
+												'zip',
+												'test'])
