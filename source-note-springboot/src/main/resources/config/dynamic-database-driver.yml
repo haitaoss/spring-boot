@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    dynamic-db-driver:
+     mysql5:
+      username: root
+      password: root
+      url: jdbc:mysql://192.168.2.100:3307/mysql
+      driver-class-name: com.mysql.jdbc.Driver
+      driver-lib: lib/mysql-connector-java-5.1.43.jar
+      init-sql: select 'haitaoss' from dual
+     mysql8:
+       username: root
+       password: root
+       url: jdbc:mysql://192.168.2.100:3306/mysql
+       driver-class-name: com.mysql.cj.jdbc.Driver
+       driver-lib: lib/mysql-connector-j-8.0.32.jar

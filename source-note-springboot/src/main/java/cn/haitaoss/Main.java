@@ -10,7 +10,6 @@ import org.springframework.context.ConfigurableApplicationContext;
  * @author haitao.chen
  * email haitaoss@aliyun.com
  * date 2023-02-13 16:14
- *
  */
 // @SpringBootApplication(exclude = WebMvcAutoConfiguration.class)
 @SpringBootApplication
@@ -23,7 +22,6 @@ public class Main {
     public static void main(String[] args) throws Exception {
         // ConfigurableApplicationContext context = SpringApplication.run(Main.class, new String[]{"haitao"});
         ConfigurableApplicationContext context = SpringApplication.run(Main.class, args);
-
 
         /*SpringApplication springApplication = new SpringApplicationBuilder()
                 .sources(Main.class)

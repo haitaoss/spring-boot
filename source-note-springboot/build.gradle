@@ -16,6 +16,12 @@ repositories {
 }
 
 dependencies {
+    // 测试动态切换数据库驱动
+    // https://mvnrepository.com/artifact/cn.hutool/hutool-all
+    implementation group: 'cn.hutool', name: 'hutool-all', version: '5.7.22'
+    implementation "org.springframework:spring-jdbc"
+    implementation "com.zaxxer:HikariCP"
+
     implementation project(":spring-boot-project:spring-boot-autoconfigure")
     implementation "org.yaml:snakeyaml"
     implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-web")
