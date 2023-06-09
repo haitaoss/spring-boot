@@ -16,6 +16,9 @@ repositories {
 }
 
 dependencies {
+    // 测试 Spring Security 自动装配
+    implementation project(":spring-boot-project:spring-boot-starters:spring-boot-starter-security")
+
     // 测试动态切换数据库驱动
     // https://mvnrepository.com/artifact/cn.hutool/hutool-all
     implementation group: 'cn.hutool', name: 'hutool-all', version: '5.7.22'

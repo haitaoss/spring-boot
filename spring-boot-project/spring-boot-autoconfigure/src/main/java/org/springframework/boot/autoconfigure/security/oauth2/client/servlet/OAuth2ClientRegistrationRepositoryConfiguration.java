@@ -38,13 +38,15 @@ import org.springframework.security.oauth2.client.registration.InMemoryClientReg
  * @author Madhura Bhave
  */
 @Configuration(proxyBeanMethods = false)
+// 将属性 spring.security.oauth2.client 绑定到 OAuth2ClientProperties 中
 @EnableConfigurationProperties(OAuth2ClientProperties.class)
-@Conditional(ClientsConfiguredCondition.class)
+@Conditional(ClientsConfiguredCondition.class) // 配置了属性 spring.security.oauth2.client.registration 才行
 class OAuth2ClientRegistrationRepositoryConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean(ClientRegistrationRepository.class)
 	InMemoryClientRegistrationRepository clientRegistrationRepository(OAuth2ClientProperties properties) {
+		// 基于 OAuth2ClientProperties 构造出 List<ClientRegistration>
 		List<ClientRegistration> registrations = new ArrayList<>(
 				OAuth2ClientPropertiesRegistrationAdapter.getClientRegistrations(properties).values());
 		return new InMemoryClientRegistrationRepository(registrations);

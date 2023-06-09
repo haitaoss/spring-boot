@@ -58,6 +58,12 @@ public class SecurityFilterAutoConfiguration {
 	@ConditionalOnBean(name = DEFAULT_FILTER_NAME)
 	public DelegatingFilterProxyRegistrationBean securityFilterChainRegistration(
 			SecurityProperties securityProperties) {
+		/**
+		 * DelegatingFilterProxyRegistrationBean 它会注册 DelegatingFilterProxy 到 Web容器中作为Filter
+		 * 而 DelegatingFilterProxy 的逻辑是委托给 getBean(DEFAULT_FILTER_NAME) 返回的bean执行
+		 *
+		 * Tips：使用@EnableWebSecurity 会注册名为 DEFAULT_FILTER_NAME 的bean到容器中
+		 * */
 		DelegatingFilterProxyRegistrationBean registration = new DelegatingFilterProxyRegistrationBean(
 				DEFAULT_FILTER_NAME);
 		registration.setOrder(securityProperties.getFilter().getOrder());

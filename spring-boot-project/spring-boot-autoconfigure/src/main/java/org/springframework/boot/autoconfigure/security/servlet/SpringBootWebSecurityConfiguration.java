@@ -61,8 +61,11 @@ class SpringBootWebSecurityConfiguration {
 		@Bean
 		@Order(SecurityProperties.BASIC_AUTH_ORDER)
 		SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+			// 所有请求都需要认证过才可以访问
 			http.authorizeRequests().anyRequest().authenticated();
+			// 会注册基于 username 和 password 参数的认证Filter
 			http.formLogin();
+			// 会注册基于请求头的认证Filter
 			http.httpBasic();
 			return http.build();
 		}
@@ -79,8 +82,10 @@ class SpringBootWebSecurityConfiguration {
 
 		@Bean
 		FilterRegistrationBean<ErrorPageSecurityFilter> errorPageSecurityFilter(ApplicationContext context) {
+			// FilterRegistrationBean 类型的bean最终会注册到 Web容器中作为Filter
 			FilterRegistrationBean<ErrorPageSecurityFilter> registration = new FilterRegistrationBean<>(
 					new ErrorPageSecurityFilter(context));
+			// 对于转发请求，只有转发类型是ERROR才会使用上这个Filter
 			registration.setDispatcherTypes(DispatcherType.ERROR);
 			return registration;
 		}

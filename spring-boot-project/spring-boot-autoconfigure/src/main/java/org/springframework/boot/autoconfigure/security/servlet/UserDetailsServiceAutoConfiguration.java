@@ -56,6 +56,7 @@ import org.springframework.util.StringUtils;
 @AutoConfiguration
 @ConditionalOnClass(AuthenticationManager.class)
 @ConditionalOnBean(ObjectPostProcessor.class)
+// 都不存在才算是匹配
 @ConditionalOnMissingBean(
 		value = { AuthenticationManager.class, AuthenticationProvider.class, UserDetailsService.class,
 				AuthenticationManagerResolver.class },
@@ -77,6 +78,7 @@ public class UserDetailsServiceAutoConfiguration {
 			ObjectProvider<PasswordEncoder> passwordEncoder) {
 		SecurityProperties.User user = properties.getUser();
 		List<String> roles = user.getRoles();
+		// InMemoryUserDetailsManager 是 UserDetailsService 类型的
 		return new InMemoryUserDetailsManager(
 				User.withUsername(user.getName()).password(getOrDeducePassword(user, passwordEncoder.getIfAvailable()))
 						.roles(StringUtils.toStringArray(roles)).build());

@@ -34,6 +34,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.access.WebInvocationPrivilegeEvaluator;
 import org.springframework.web.util.UrlPathHelper;
 
@@ -72,19 +73,29 @@ public class ErrorPageSecurityFilter implements Filter {
 
 	private void doFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws IOException, ServletException {
+		// 拿到错误码
 		Integer errorCode = (Integer) request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
+		/**
+		 * 转发类型是ERROR 且 不是允许的请求。
+		 *
+		 * 该 Filter 优先于 {@link FilterChainProxy} 执行，对于错误转发可以在这里快速返回，省的执行很多没必要的 Security Filter
+		 * */
 		if (DispatcherType.ERROR.equals(request.getDispatcherType()) && !isAllowed(request, errorCode)) {
+			// 设置错误码
 			response.sendError((errorCode != null) ? errorCode : 401);
 			return;
 		}
+		// 放行
 		chain.doFilter(request, response);
 	}
 
 	private boolean isAllowed(HttpServletRequest request, Integer errorCode) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		// 未认证过 且 错误码不是401、403
 		if (isUnauthenticated(authentication) && isNotAuthenticationError(errorCode)) {
 			return true;
 		}
+		// 委托给 WebInvocationPrivilegeEvaluator 判断
 		return getPrivilegeEvaluator().isAllowed(this.urlPathHelper.getPathWithinApplication(request), authentication);
 	}
 

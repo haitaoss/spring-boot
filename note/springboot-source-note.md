@@ -1,8 +1,14 @@
-# 资料
+# 说明
 
-[SpringBoot官方文档](https://docs.spring.io/spring-boot/docs/2.7.8/reference/html/)
+Author: [haitaoss](https://github.com/haitaoss)
 
-[示例代码](../source-note-springboot)
+源码阅读仓库: [spring-boot](https://github.com/haitaoss/spring-boot)
+
+参考资料和需要掌握的知识：
+
+- [Spring Boot官方文档](https://docs.spring.io/spring-boot/docs/2.7.8/reference/html/) 
+- [Spring 源码分析](https://github.com/haitaoss/spring-framework)
+- [示例代码](../source-note-springboot)
 
 # SpringBoot 是什么？
 
@@ -1022,6 +1028,8 @@ class MyServlet extends HttpServlet {
 
 ## Spring WebFlux 自动装配
 
+[前置知识：Spring WebFlux 源码分析](https://github.com/haitaoss/spring-framework/blob/source-v5.3.10/note/springwebflux-source-note.md)
+
  `spring-boot-autoconfigure.jar!/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`的部分内容
 
 ```properties
@@ -1054,6 +1062,196 @@ org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfiguration
  *      大致的调用链路：客户端发送请求 -> TomcatServer -> TomcatHttpHandlerAdapter -> HttpHandler -> WebHandler        
  * */
 ```
+
+## Spring Security 自动装配
+
+[前置知识：Spring Security 源码分析](https://github.com/haitaoss/spring-security/blob/source-v5.8.3/note/spring-security-source-note.md)
+
+`spring-boot-autoconfigure.jar!/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`的部分内容
+
+```properties
+org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration
+org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
+```
+
+### SecurityAutoConfiguration
+
+```java
+/**
+ * SecurityAutoConfiguration
+ *  1. 条件注解 @ConditionalOnClass(DefaultAuthenticationEventPublisher.class) 该个类是 spring-security-core-5.7.6.jar 中定义的，
+ *  也就是 classpath 中存在 spring-security 的依赖自动配置才会生效。
+ *
+ *  2. 通过 @EnableConfigurationProperties(SecurityProperties.class) 将属性绑定到 SecurityProperties
+ *
+ *  3. 通过 @Import({ SpringBootWebSecurityConfiguration.class, SecurityDataConfiguration.class }) 注册两个bean
+ *      3.1 SpringBootWebSecurityConfiguration 的作用
+ *          - 满足 @ConditionalOnDefaultWebSecurity 就注册一个 SecurityFilterChain 到 BeanFactory 中
+ *          - 注册 FilterRegistrationBean<ErrorPageSecurityFilter> 到 BeanFactory 中, 该 Filter 优先于 FilterChainProxy 执行，对于错误转发类型可以在这里快速返回，省的执行很多没必要的 Security Filter
+ *          - 使用 @EnableWebSecurity。这是非常关键的，也就是启用了 Spring Security 的各种组件
+ *
+ *      3.2 SecurityDataConfiguration 的作用
+ *          - 注册 SecurityEvaluationContextExtension 到 BeanFactory 中
+ *
+ *  4. 若 BeanFactory 中不存在 AuthenticationEventPublisher 类型的bean，就注册默认值 DefaultAuthenticationEventPublisher 到 BeanFactory 中
+ *
+ */
+```
+```java
+@AutoConfiguration
+@ConditionalOnClass(DefaultAuthenticationEventPublisher.class)
+@EnableConfigurationProperties(SecurityProperties.class)
+@Import({ SpringBootWebSecurityConfiguration.class, SecurityDataConfiguration.class })
+public class SecurityAutoConfiguration {
+
+	@Bean
+	@ConditionalOnMissingBean(AuthenticationEventPublisher.class)
+	public DefaultAuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher publisher) {
+		return new DefaultAuthenticationEventPublisher(publisher);
+	}
+
+}
+```
+
+### UserDetailsServiceAutoConfiguration
+
+一大堆条件，最终目的是注册默认的 UserDetailsService 类型的bean
+
+```java
+@AutoConfiguration
+@ConditionalOnClass(AuthenticationManager.class)
+@ConditionalOnBean(ObjectPostProcessor.class)
+// 都不存在才算是匹配
+@ConditionalOnMissingBean(
+		value = { AuthenticationManager.class, AuthenticationProvider.class, UserDetailsService.class,
+				AuthenticationManagerResolver.class },
+		type = { "org.springframework.security.oauth2.jwt.JwtDecoder",
+				"org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector",
+				"org.springframework.security.oauth2.client.registration.ClientRegistrationRepository",
+				"org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository" })
+public class UserDetailsServiceAutoConfiguration {
+	@Bean
+	@Lazy
+	public InMemoryUserDetailsManager inMemoryUserDetailsManager(SecurityProperties properties,
+			ObjectProvider<PasswordEncoder> passwordEncoder) {
+		SecurityProperties.User user = properties.getUser();
+		List<String> roles = user.getRoles();
+		// InMemoryUserDetailsManager 是 UserDetailsService 类型的
+		return new InMemoryUserDetailsManager(
+				User.withUsername(user.getName()).password(getOrDeducePassword(user, passwordEncoder.getIfAvailable()))
+						.roles(StringUtils.toStringArray(roles)).build());
+	}
+}
+```
+
+### SecurityFilterAutoConfiguration
+
+注册 DelegatingFilterProxy 到Web容器中作为Filter，就是通过这个 Filter 让 Spring Security 集成到 Web应用中。
+
+```java
+@AutoConfiguration(after = SecurityAutoConfiguration.class)
+@ConditionalOnWebApplication(type = Type.SERVLET)
+@EnableConfigurationProperties(SecurityProperties.class)
+@ConditionalOnClass({ AbstractSecurityWebApplicationInitializer.class, SessionCreationPolicy.class })
+public class SecurityFilterAutoConfiguration {
+
+	@Bean
+	@ConditionalOnBean(name = DEFAULT_FILTER_NAME)
+	public DelegatingFilterProxyRegistrationBean securityFilterChainRegistration(
+			SecurityProperties securityProperties) {
+		/**
+		 * DelegatingFilterProxyRegistrationBean 它会注册 DelegatingFilterProxy 到 Web容器中作为Filter
+		 * 而 DelegatingFilterProxy 的逻辑是委托给 getBean(DEFAULT_FILTER_NAME) 返回的bean执行
+		 * 
+		 * Tips：但使用@EnableWebSecurity 会注册名为 DEFAULT_FILTER_NAME 的bean到容器中 
+		 * */
+		DelegatingFilterProxyRegistrationBean registration = new DelegatingFilterProxyRegistrationBean(
+				DEFAULT_FILTER_NAME);
+		registration.setOrder(securityProperties.getFilter().getOrder());
+		registration.setDispatcherTypes(getDispatcherTypes(securityProperties));
+		return registration;
+	}
+
+}
+```
+
+### OAuth2ClientAutoConfiguration
+
+```java
+/**
+ * OAuth2ClientAutoConfiguration
+ *
+ *  通过 @Import({ OAuth2ClientRegistrationRepositoryConfiguration.class, OAuth2WebSecurityConfiguration.class }) 注册两个bean
+ *      1. OAuth2ClientRegistrationRepositoryConfiguration 的作用
+ *          - 设置了 spring.security.oauth2.client.registration.** 属性信息就根据属性值构造出 InMemoryClientRegistrationRepository
+ *          并注册到 BeanFactory 中
+ *
+ *      2. OAuth2WebSecurityConfiguration
+ *          - BeanFactory 中不存在就注册 OAuth2AuthorizedClientService
+ *          - BeanFactory 中不存在就注册 OAuth2AuthorizedClientRepository
+ *          - BeanFactory 中不存在就注册 SecurityFilterChain
+ *
+ */
+```
+### OAuth2ResourceServerAutoConfiguration
+
+其实就是注册 OpaqueToken 和 JwtToken 的解析工具
+
+```java
+@AutoConfiguration(before = { SecurityAutoConfiguration.class, UserDetailsServiceAutoConfiguration.class })
+@EnableConfigurationProperties(OAuth2ResourceServerProperties.class)
+@ConditionalOnClass(BearerTokenAuthenticationToken.class)
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@Import({ Oauth2ResourceServerConfiguration.JwtConfiguration.class,
+		Oauth2ResourceServerConfiguration.OpaqueTokenConfiguration.class })
+public class OAuth2ResourceServerAutoConfiguration {
+
+}
+```
+
+### @ConditionalOnDefaultWebSecurity
+
+ClassLoader 能加载到 SecurityFilterChain、HttpSecurity 两个类
+且 BeanFactory 中不存在 WebSecurityConfigurerAdapter、SecurityFilterChain 两个bean
+条件成立
+
+```java
+@Target({ ElementType.TYPE, ElementType.METHOD })
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Conditional(DefaultWebSecurityCondition.class)
+public @interface ConditionalOnDefaultWebSecurity {
+
+}
+```
+
+```java
+class DefaultWebSecurityCondition extends AllNestedConditions {
+
+	DefaultWebSecurityCondition() {
+		super(ConfigurationPhase.REGISTER_BEAN);
+	}
+
+	@ConditionalOnClass({ SecurityFilterChain.class, HttpSecurity.class })
+	static class Classes {
+
+	}
+
+	@ConditionalOnMissingBean({
+			org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter.class,
+			SecurityFilterChain.class })
+	@SuppressWarnings("deprecation")
+	static class Beans {
+
+	}
+
+}
+```
+
+
 
 # Web容器启动流程
 

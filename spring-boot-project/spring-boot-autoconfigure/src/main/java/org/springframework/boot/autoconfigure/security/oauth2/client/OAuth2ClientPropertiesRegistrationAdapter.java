@@ -56,8 +56,12 @@ public final class OAuth2ClientPropertiesRegistrationAdapter {
 
 	private static ClientRegistration getClientRegistration(String registrationId,
 			OAuth2ClientProperties.Registration properties, Map<String, Provider> providers) {
+		// 设置了 provider
 		Builder builder = getBuilderFromIssuerIfPossible(registrationId, properties.getProvider(), providers);
 		if (builder == null) {
+			/**
+			 * 默认的
+			 * */
 			builder = getBuilder(registrationId, properties.getProvider(), providers);
 		}
 		PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
@@ -90,11 +94,13 @@ public final class OAuth2ClientPropertiesRegistrationAdapter {
 	private static Builder getBuilder(String registrationId, String configuredProviderId,
 			Map<String, Provider> providers) {
 		String providerId = (configuredProviderId != null) ? configuredProviderId : registrationId;
+		// 是 通用的
 		CommonOAuth2Provider provider = getCommonProvider(providerId);
 		if (provider == null && !providers.containsKey(providerId)) {
 			throw new IllegalStateException(getErrorMessage(configuredProviderId, registrationId));
 		}
 		Builder builder = (provider != null) ? provider.getBuilder(registrationId)
+				// 构造出来
 				: ClientRegistration.withRegistrationId(registrationId);
 		if (providers.containsKey(providerId)) {
 			return getBuilder(builder, providers.get(providerId));

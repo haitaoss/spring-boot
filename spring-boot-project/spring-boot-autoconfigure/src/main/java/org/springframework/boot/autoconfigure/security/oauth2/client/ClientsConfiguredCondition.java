@@ -46,6 +46,7 @@ public class ClientsConfiguredCondition extends SpringBootCondition {
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
 		ConditionMessage.Builder message = ConditionMessage.forCondition("OAuth2 Clients Configured Condition");
 		Map<String, OAuth2ClientProperties.Registration> registrations = getRegistrations(context.getEnvironment());
+		// 不是空
 		if (!registrations.isEmpty()) {
 			return ConditionOutcome.match(message.foundExactly("registered clients " + registrations.values().stream()
 					.map(OAuth2ClientProperties.Registration::getClientId).collect(Collectors.joining(", "))));
