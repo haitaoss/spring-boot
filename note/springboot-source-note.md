@@ -1425,6 +1425,8 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 
 # SpringBoot Test
 
+## 怎么用
+
 https://docs.spring.io/spring-boot/docs/2.7.9/reference/html/features.html#features.testing
 
 > Spring Boot提供了一个`@SpringBootTest`注解，当您需要Spring Boot特性时可以使用。注解的工作原理是通过SpringApplication创建测试中使用的ApplicationContext。除了@SpringBootTest之外，还提供了许多其他注解来测试应用程序的更具体的功能，比如(@JdbcTest、@WebMvcTest)。
@@ -1478,7 +1480,7 @@ public class Main {
 
 > 默认情况下会将标注了 `@SpringBootApplication` 的类用作测试的配置类。
 >
-> 因此，不要在应用程序的主类中添加特定特定功能的配置这非常重要。假设您正在使用Spring Batch，并且依赖于它的自动配置，您可以如下定义
+> 因此，建议不要在应用程序的主类中添加特定特定功能的配置。假设您正在使用Spring Batch，并且依赖于它的自动配置，您可以如下定义
 
 ```java
 @SpringBootApplication
@@ -1511,6 +1513,28 @@ public class Main {
     }
 }
 ```
+
+## @SpringBootTest
+```java
+@BootstrapWith(SpringBootTestContextBootstrapper.class)
+@ExtendWith(SpringExtension.class)
+public @interface SpringBootTest {
+    // ...
+}
+```
+```java
+public class Main{
+    /** 
+     * 1. 声明了 `@ExtendWith(SpringExtension.class)` 
+     * 2. 执行 @Test 方法是会回调 
+     * 
+     */
+}
+```
+
+## @ContextConfiguration
+
+## @ActiveProfiles("test")
 
 # Actuator
 
@@ -1787,6 +1811,3 @@ public class EnvironmentEndpointAutoConfiguration {
 > EndpointsSupplier 会使用 EndpointFilter 来过滤那些 ExposableEndpoint 应该返回
 
 ![EndpointsSupplier](.springboot-source-note_imgs/EndpointsSupplier.png)
-
-
-
